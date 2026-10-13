@@ -100,7 +100,7 @@ const PHUONG_PHAP = [
 
 // Doi ngu (co chot 11/10/2026: chi ghi "Co Ninh", khong ghi bang cap/kinh nghiem). Trung tam chi day Tieng Anh.
 const GIAO_VIEN = [
-  { ten: "Cô Ninh", vai_tro: "Phụ trách Tiếng Anh", anh: "anh/co_ninh_chan_dung_300.webp", gioi_thieu: "", bat: true },
+  { ten: "Cô Ninh", vai_tro: "Phụ trách Tiếng Anh", anh: "anh/co_ninh_tot_nghiep_300.webp", anh_2x: "anh/co_ninh_tot_nghiep_600.webp", gioi_thieu: "", bat: true },
 ];
 
 // Chuong trinh hoc (bai tuyen sinh 2026–2027 + co chot gia)
@@ -361,7 +361,7 @@ function lyDoHtml() {
 function giaoVienHtml() {
   const ds = GIAO_VIEN.filter((g) => g.bat);
   if (!ds.length) return BAN_NHAP ? cho("đội ngũ giáo viên do cô cung cấp.") : "";
-  return `<div class="g3 pub-team">${ds.map((g) => `<div class="pub-face">${g.anh ? `<img src="${esc(g.anh)}" alt="${esc(g.ten)}" loading="lazy" decoding="async" width="150" height="150">` : `<div class="pub-face-img">${ic("user")}</div>`}
+  return `<div class="g3 pub-team">${ds.map((g) => `<div class="pub-face">${g.anh ? `<img src="${esc(g.anh)}"${g.anh_2x ? ` srcset="${esc(g.anh)} 1x, ${esc(g.anh_2x)} 2x"` : ""} alt="${esc(g.ten)}" loading="lazy" decoding="async" width="150" height="150">` : `<div class="pub-face-img">${ic("user")}</div>`}
       <b>${esc(g.ten)}</b><small>${esc(g.vai_tro || "")}</small>${g.gioi_thieu ? `<p>${esc(g.gioi_thieu)}</p>` : ""}</div>`).join("")}</div>`;
 }
 function soLieuLonHtml() {
