@@ -100,7 +100,7 @@ const PHUONG_PHAP = [
 
 // Doi ngu (co chot 11/10/2026: chi ghi "Co Ninh", khong ghi bang cap/kinh nghiem). Trung tam chi day Tieng Anh.
 const GIAO_VIEN = [
-  { ten: "Cô Ninh", vai_tro: "Phụ trách Tiếng Anh", anh: "anh/co_ninh_tot_nghiep_300.webp", anh_2x: "anh/co_ninh_tot_nghiep_600.webp", gioi_thieu: "", bat: true },
+  { ten: "Cô Ninh", vai_tro: "Giám đốc trung tâm", anh: "anh/co_ninh_tot_nghiep_300.webp", anh_2x: "anh/co_ninh_tot_nghiep_600.webp", gioi_thieu: "", bat: true },
 ];
 
 // Chuong trinh hoc (bai tuyen sinh 2026–2027 + co chot gia)
