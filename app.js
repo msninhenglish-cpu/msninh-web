@@ -112,6 +112,11 @@ async function api(fn, args, withToken) {
   const { data, error } = res;
   if (error) {
     const msg = error.message || "";
+    if (msg.startsWith("DOI_MK:")) {
+      if (S.user) { S.user.default_password = true; LS.set("kt_user", S.user); }
+      setTimeout(() => go("#/doi-mk"), 0);
+      throw new Error(msg.slice(7).trim());
+    }
     if (msg.startsWith("AUTH:")) {
       clearSession();
       S.flash = msg.slice(5).trim();
@@ -187,6 +192,7 @@ async function route() {
         default: return go("#/t");
       }
     }
+    if (S.user.default_password) return viewDoiMk();
     switch (p[0]) {
       case undefined: return sHome();
       case "start": return sStart(+p[1]);
@@ -263,8 +269,9 @@ function viewLogin() {
       <div class="field"><label class="f" for="code">Mã học sinh</label>
         <input class="input" id="code" name="code" placeholder="Ví dụ: 057" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required></div>
       <div class="field"><label class="f" for="pw">Mật khẩu</label>
-        <div class="pwrow"><input class="input" id="pw" name="pw" type="password" placeholder="Mật khẩu cô phát hoặc em tự đặt" autocomplete="current-password" required>
-        <button type="button" class="btn" data-act="eye" title="Hiện / ẩn mật khẩu">👁</button></div></div>
+        <div class="pwrow"><input class="input" id="pw" name="pw" type="password" placeholder="Mật khẩu của em" autocomplete="current-password" required>
+        <button type="button" class="btn" data-act="eye" title="Hiện / ẩn mật khẩu">👁</button></div>
+        <div class="small muted" style="margin-top:6px">Lần đầu: dùng mật khẩu trên phiếu cô phát, sau đó đặt mật khẩu mới.</div></div>
       <button class="btn btn-primary btn-block btn-lg" id="loginBtn">Đăng nhập</button>
       <p class="muted small center" style="margin:12px 0 0">Quên mật khẩu? Hãy nhờ cô đặt lại. · <a href="#/trang-chu">Trang chủ</a></p>
     </form>
@@ -275,7 +282,7 @@ function viewLogin() {
     try {
       const r = await api("login", { p_code: f.code.value, p_password: f.pw.value }, false);
       setSession(r.token, r.user);
-      go(r.user.role === "teacher" ? "#/t" : "#/");
+      go(r.user.role === "teacher" ? "#/t" : r.user.default_password ? "#/doi-mk" : "#/");
     } catch (e) { document.getElementById("err").innerHTML = errBox(e); }
   });
 }
@@ -301,10 +308,50 @@ function viewSetup() {
   });
 }
 
+// Mat khau qua de doan (giong kiem tra o may chu _mk_yeu)
+function mkYeu(p, code) {
+  const l = String(p).toLowerCase(), c = String(code || "").toLowerCase();
+  return /^(.)\1+$/.test(l) || "01234567890123456789".includes(l) || "98765432109876543210".includes(l)
+    || ["123123", "112233", "121212", "123321", "111222", "abcdef", "abc123", "qwerty", "asdfgh", "password", "matkhau", "iloveyou", "msninh", "ninh123"].includes(l)
+    || [c, c + c].includes(l) || (/^[0-9]+$/.test(l) && l.replace(/^0+/, "") === c.replace(/^0+/, ""));
+}
+function viewDoiMk() {
+  const u = S.user || {};
+  app.innerHTML = `<div class="center-screen"><div class="login-box">
+    <form class="card" data-submit="doimk">${brandBig("Đặt mật khẩu mới")}
+      <p>Chào <b>${esc(u.name || "")}</b> (mã <b>${esc(u.code || "")}</b>)!</p>
+      <p class="small muted">Em đang dùng mật khẩu trên phiếu cô phát. Hãy đặt mật khẩu riêng để giữ bài làm, điểm và học phí của em an toàn.
+        Đặt xong mới vào được trang của em.</p>
+      <div id="err"></div>
+      <div class="field"><label class="f" for="nw">Mật khẩu mới (từ 6 ký tự)</label>
+        <div class="pwrow"><input class="input" id="nw" name="nw" type="password" autocomplete="new-password" required minlength="6" maxlength="50">
+        <button type="button" class="btn" data-act="eye" title="Hiện / ẩn mật khẩu">👁</button></div></div>
+      <div class="field"><label class="f" for="nw2">Nhập lại mật khẩu mới</label>
+        <input class="input" id="nw2" name="nw2" type="password" autocomplete="new-password" required></div>
+      <p class="small muted" style="margin-top:0">Không dùng 000000, 123456, 111111 hay mã học sinh. Em nhớ ghi lại mật khẩu ở chỗ an toàn nhé.</p>
+      <button class="btn btn-primary btn-block btn-lg">Lưu mật khẩu mới</button>
+      <p class="center small" style="margin:12px 0 0"><a href="#" data-act="logout">Đăng xuất</a></p>
+    </form></div></div>`;
+  ACT.eye = () => { ["nw", "nw2"].forEach((k) => { const el = document.getElementById(k); el.type = el.type === "password" ? "text" : "password"; }); };
+  ACT.logout = (el, e) => { if (e) e.preventDefault(); doLogout(); };
+  ACT.doimk = (f) => busy(f.querySelector("button.btn-primary"), async () => {
+    const box = document.getElementById("err"), nw = f.nw.value;
+    const loi = nw.length < 6 ? "Mật khẩu mới phải có ít nhất 6 ký tự." : nw !== f.nw2.value ? "Hai lần nhập mật khẩu mới không khớp."
+      : mkYeu(nw, u.code) ? "Mật khẩu này quá dễ đoán. Hãy chọn mật khẩu khác." : "";
+    if (loi) { box.innerHTML = errBox(loi); return; }
+    try {
+      await api("change_password", { p_old: "", p_new: nw });
+      S.user.default_password = false; LS.set("kt_user", S.user);
+      toast("Đã lưu mật khẩu mới. Lần sau em đăng nhập bằng mật khẩu này nhé.", 4000);
+      go("#/");
+    } catch (e) { box.innerHTML = errBox(e); }
+  });
+}
+
 function passwordForm() {
   return `<form class="card" data-submit="chpw"><h2>Đổi mật khẩu</h2><div id="pwmsg"></div>
     <div class="field"><label class="f">Mật khẩu hiện tại</label><input class="input" name="old" type="password" autocomplete="current-password" required></div>
-    <div class="field"><label class="f">Mật khẩu mới (từ 4 ký tự)</label><input class="input" name="nw" type="password" autocomplete="new-password" required></div>
+    <div class="field"><label class="f">Mật khẩu mới (từ 6 ký tự)</label><input class="input" name="nw" type="password" autocomplete="new-password" required></div>
     <div class="field"><label class="f">Nhập lại mật khẩu mới</label><input class="input" name="nw2" type="password" autocomplete="new-password" required></div>
     <button class="btn btn-primary btn-block">Đổi mật khẩu</button></form>`;
 }
@@ -1382,13 +1429,13 @@ async function tClass(id) {
       ${list.length ? "" : '<button class="btn btn-sm btn-danger" data-act="delclass">Xoá lớp</button>'}</div></div>
     <details class="box" ${list.length ? "" : "open"}><summary>➕ Nhập danh sách học sinh</summary>
       <p class="small muted">Sao chép 2 cột <b>Mã học sinh</b> và <b>Họ và tên</b> từ Excel / Google Sheet rồi dán vào đây (mỗi em một dòng).
-      Em nào đã có mã sẽ được cập nhật tên và chuyển vào lớp này, <b>giữ nguyên mật khẩu</b>. Em mới sẽ được tạo mật khẩu 6 số.</p>
+      Em nào đã có mã sẽ được cập nhật tên và chuyển vào lớp này, <b>giữ nguyên mật khẩu</b>. Em mới được mật khẩu 6 số (in trên phiếu); lần đầu đăng nhập em phải tự đặt mật khẩu mới.</p>
       <textarea class="input" id="roster" rows="8" placeholder="057&#9;Nguyễn Văn An&#10;058&#9;Trần Thị Bình"></textarea>
       <div id="rprev" class="small muted" style="margin:6px 0"></div>
       <button class="btn btn-primary" data-act="import">Nhập vào lớp ${esc(c.name)}</button></details>
     ${list.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>Mã</th><th>Họ và tên</th><th>Mật khẩu ban đầu</th><th>Đăng nhập gần nhất</th><th></th></tr></thead><tbody>
       ${list.map((s) => `<tr${s.active ? "" : ' style="opacity:.5"'}><td>${esc(s.code)}</td><td class="wrap">${esc(s.name)}${s.active ? "" : " <span class='badge'>Đã khoá</span>"}${s.locked ? " <span class='badge exam'>Tạm khoá do nhập sai</span>" : ""}</td>
-        <td>${s.initial_pin ? `<code style="font-size:15px">${esc(s.initial_pin)}</code>` : '<span class="faint small">Em đã tự đổi</span>'}</td>
+        <td>${s.initial_pin ? `<code style="font-size:15px">${esc(s.initial_pin)}</code> <span class="small faint">chưa đổi</span>` : '<span class="faint small">Em đã tự đặt</span>'}</td>
         <td class="small">${s.last_login ? fmtDT(s.last_login) : '<span class="faint">Chưa</span>'}</td>
         <td><button class="btn btn-sm" data-act="reset" data-id="${s.id}" data-n="${esc(s.name)}">Đặt lại MK</button>
         <button class="btn btn-sm" data-act="edit" data-id="${s.id}">Sửa</button></td></tr>`).join("")}
@@ -1408,9 +1455,9 @@ async function tClass(id) {
     } catch (e) { toast(e.message, 4000); }
   });
   ACT.reset = (btn) => {
-    if (!confirm(`Đặt lại mật khẩu cho ${btn.dataset.n}? Em sẽ phải đăng nhập bằng mật khẩu mới.`)) return;
+    if (!confirm(`Đặt lại mật khẩu cho ${btn.dataset.n}?\nEm đăng nhập bằng mật khẩu 6 số mới rồi phải đặt mật khẩu riêng ngay.`)) return;
     busy(btn, async () => {
-      try { const r = await api("t_reset_password", { p_user_id: Number(btn.dataset.id) }); alert(`Mật khẩu mới của ${btn.dataset.n}: ${r.pin}`); route(); } catch (e) { toast(e.message); }
+      try { const r = await api("t_reset_password", { p_user_id: Number(btn.dataset.id) }); alert(`Mật khẩu mới của ${btn.dataset.n}: ${r.pin}\n(Lần đăng nhập đầu em sẽ phải đặt mật khẩu riêng.)`); route(); } catch (e) { toast(e.message); }
     });
   };
   ACT.edit = (btn) => {
@@ -1452,11 +1499,12 @@ async function tPrint(id) {
   list = list.filter((s) => s.active);
   app.querySelector("main").innerHTML = `<div class="no-print"><a href="#/t/c/${id}" class="small">‹ Lớp ${esc(c.name)}</a>
     <div class="row between" style="margin:8px 0 12px"><h1 style="margin:0">Phiếu tài khoản lớp ${esc(c.name)}</h1><button class="btn btn-primary" data-act="print">🖨 In</button></div>
-    <p class="small muted">Cắt theo đường nét đứt và phát cho từng em. Em nào đã tự đổi mật khẩu thì phiếu không ghi mật khẩu.</p></div>
+    <p class="small muted">Cắt theo đường nét đứt và phát cho từng em. Em nào đã tự đặt mật khẩu thì phiếu không ghi mật khẩu.</p></div>
     <div class="slips">${list.map((s) => `<div class="slip"><div class="slip-brand">ANH NGỮ MS.NINH</div><div class="small muted">Kiểm tra &amp; bài tập online</div>
       <b>${esc(s.name)}</b> <span class="small">· Lớp ${esc(c.name)}</span>
       <div style="margin-top:6px">Mã học sinh: <b>${esc(s.code)}</b></div>
-      <div>Mật khẩu: ${s.initial_pin ? `<span class="pw">${esc(s.initial_pin)}</span>` : "<i>(em đã tự đổi)</i>"}</div>
+      <div>Mật khẩu lần đầu: ${s.initial_pin ? `<span class="pw">${esc(s.initial_pin)}</span>` : "<i>(em đã tự đặt)</i>"}</div>
+      <div class="small">Đăng nhập lần đầu xong em phải đặt mật khẩu riêng.</div>
       <div class="small" style="margin-top:4px;word-break:break-all">${esc(site)}</div></div>`).join("")}</div>`;
   ACT.print = () => window.print();
 }
