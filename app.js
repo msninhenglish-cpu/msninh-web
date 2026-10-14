@@ -149,7 +149,8 @@ document.addEventListener("click", (e) => {
   const el = e.target.closest("[data-act]");
   if (!el) return;
   const fn = ACT[el.dataset.act] || (el.dataset.act === "logout" ? doLogout : null);
-  if (fn) { e.preventDefault(); fn(el, e); }
+  // "noop" chi de chan click trong khung bat len khoi dong khung; khong chan nut submit ben trong
+  if (fn) { if (el.dataset.act !== "noop") e.preventDefault(); fn(el, e); }
 });
 document.addEventListener("submit", (e) => {
   const fn = ACT[e.target.dataset.submit];
@@ -188,6 +189,7 @@ async function route() {
         case "c": return p[3] === "print" ? tPrint(+p[2]) : p[3] === "tq" ? tTongQuan(+p[2], query) : tClass(+p[2]);
         case "hoc-phi": return tHocPhi(query);
         case "dang-ky": return tDangKy();
+        case "sua-web": return moSuaWeb();
         case "account": return tAccount();
         default: return go("#/t");
       }
@@ -244,10 +246,20 @@ function sShell(tab, inner, opts) {
     ${opts.left || ""}<main>${inner}</main></div>`;
 }
 function tShell(tab, inner) {
-  const nav = [["home", "#/t", "▶️ Bài đã giao"], ["quizzes", "#/t/quizzes", "📚 Kho đề"], ["classes", "#/t/classes", "🏫 Lớp & học sinh"], ["hocphi", "#/t/hoc-phi", "💰 Học phí"], ["dangky", "#/t/dang-ky", "📩 Phiếu đăng ký"], ["account", "#/t/account", "⚙️ Tài khoản"]];
+  const nav = [["home", "#/t", "▶️ Bài đã giao"], ["quizzes", "#/t/quizzes", "📚 Kho đề"], ["classes", "#/t/classes", "🏫 Lớp & học sinh"], ["hocphi", "#/t/hoc-phi", "💰 Học phí"], ["dangky", "#/t/dang-ky", "📩 Phiếu đăng ký"], ["suaweb", "#/t/sua-web", "✏️ Sửa website"], ["account", "#/t/account", "⚙️ Tài khoản"]];
   return `<div class="page wide">${topbar('<button class="btn btn-sm hide-sm" data-act="logout">Đăng xuất</button>')}
     <div class="tabs grid3">${nav.map((n) => `<a href="${n[1]}" class="${n[0] === tab ? "on" : ""}">${n[2]}</a>`).join("")}</div>
     <main>${inner}</main></div>`;
+}
+// Cong cu "Sua website" nam o sua_web.js, chi tai khi giao vien mo
+function moSuaWeb() {
+  if (window.tSuaWeb) return tSuaWeb();
+  app.innerHTML = tShell("suaweb", spinner());
+  const s = document.createElement("script");
+  s.src = "sua_web.js?v=3";
+  s.onload = () => tSuaWeb();
+  s.onerror = () => { app.querySelector("main").innerHTML = errBox("Không tải được công cụ. Kiểm tra mạng rồi thử lại."); };
+  document.head.appendChild(s);
 }
 async function doLogout() {
   try { await api("logout"); } catch (e) { /* van dang xuat tren may */ }
