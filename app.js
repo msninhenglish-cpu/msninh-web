@@ -10,6 +10,14 @@ const LETTERS = "ABCDEFGH";
 const NET_ERR = "Không kết nối được máy chủ. Hãy kiểm tra mạng rồi thử lại.";
 
 /* ================= tien ich ================= */
+// Chong nhung trang vao web khac (clickjacking). Chi cho phep khung xem truoc cung nguon (Sua website).
+(function () {
+  if (window.top === window.self) return;
+  let cungNguon = false;
+  try { cungNguon = window.top.location.origin === location.origin; } catch (e) { cungNguon = false; }
+  if (!cungNguon) { document.documentElement.style.display = "none"; try { window.top.location.href = location.href; } catch (e) { /* bi chan thi de trang trong */ } }
+})();
+
 const LS = {
   get(k) { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } },
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* bo qua */ } },
@@ -23,6 +31,8 @@ function fmt(s) {
   return esc(s).replace(/&lt;(\/?)(b|i|u|br)\s*\/?&gt;/gi, "<$1$2>").replace(/\n/g, "<br>");
 }
 function plain(s) { return String(s || "").replace(/<[^>]+>/g, ""); }
+// Thang lay tu dia chi trang: chi nhan dung dang YYYY-MM (chong chen ma qua link)
+function thangHopLe(t) { return /^\d{4}-(0[1-9]|1[0-2])$/.test(t || "") ? t : thangNayVN(); }
 function fmtScore(x) {
   if (x === null || x === undefined || x === "") return "–";
   return Number(x).toLocaleString("vi-VN", { maximumFractionDigits: 2 });
@@ -74,7 +84,8 @@ function copyText(txt) {
 const S = { token: LS.get("kt_token"), user: LS.get("kt_user"), home: null, lastResult: null };
 let sb = null;
 // Thu vien ket noi Supabase (~100 KB): chi tai khi can (trang gioi thieu khong can) de trang chu nhe
-const SB_URL = "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js";
+// Tu luu ban co dinh (14/10/2026, doi chieu dung goi npm @supabase/supabase-js 2.117.0) -> khong phu thuoc CDN ngoai
+const SB_URL = "vendor/supabase-2.117.0.js";
 let sbLoading = null;
 function taiThuVien() {
   if (window.supabase) return Promise.resolve();
@@ -1566,14 +1577,14 @@ function thangNayVN() { return new Date().toLocaleDateString("sv-SE", { timeZone
 async function tHocPhi(query) {
   app.innerHTML = tShell("hocphi", spinner());
   ACT.retry = () => route();
-  const st = { thang: query.get("thang") || thangNayVN(), cls: query.get("lop") || "", chua: query.get("chua") === "1" };
+  const st = { thang: thangHopLe(query.get("thang")), cls: query.get("lop") || "", chua: query.get("chua") === "1" };
   let ov;
   try { ov = await api("t_overview"); } catch (e) { app.querySelector("main").innerHTML = pageError(e); return; }
   const main = app.querySelector("main");
   const ve = async () => {
     main.innerHTML = `<h1>💰 Học phí</h1>
       <div class="filters">
-        <input class="input" type="month" data-ch="thang" value="${st.thang}" aria-label="Tháng">
+        <input class="input" type="month" data-ch="thang" value="${esc(st.thang)}" aria-label="Tháng">
         <select class="input" data-ch="lop" aria-label="Lớp"><option value="">Tất cả lớp</option>${ov.classes.map((c) => `<option value="${c.id}" ${String(c.id) === st.cls ? "selected" : ""}>${esc(c.name)}</option>`).join("")}</select>
         <label class="check"><input type="checkbox" data-ch="chua" ${st.chua ? "checked" : ""}> Chỉ em chưa đóng</label>
       </div><div id="hp">${spinner()}</div>`;
@@ -1617,7 +1628,7 @@ async function tHocPhi(query) {
 async function tTongQuan(id, query) {
   app.innerHTML = tShell("classes", spinner());
   ACT.retry = () => route();
-  let thang = query.get("thang") || thangNayVN();
+  let thang = thangHopLe(query.get("thang"));
   let ov;
   try { ov = await api("t_overview"); } catch (e) { app.querySelector("main").innerHTML = pageError(e); return; }
   const c = ov.classes.find((x) => x.id === id) || { name: "" };
@@ -1625,7 +1636,7 @@ async function tTongQuan(id, query) {
   const ve = async () => {
     main.innerHTML = `<a href="#/t/c/${id}" class="small">‹ Lớp ${esc(c.name)}</a>
       <div class="row between" style="margin:8px 0"><h1 style="margin:0">📋 Tổng quan lớp ${esc(c.name)}</h1>
-      <input class="input" type="month" data-ch="thang" value="${thang}" style="width:auto" aria-label="Tháng"></div><div id="tq">${spinner()}</div>`;
+      <input class="input" type="month" data-ch="thang" value="${esc(thang)}" style="width:auto" aria-label="Tháng"></div><div id="tq">${spinner()}</div>`;
     let d;
     try { d = await api("t_tong_quan_lop", { p: { class_id: id, thang } }); } catch (e) { document.getElementById("tq").innerHTML = errBox(e); return; }
     const s = (v) => (v === null || v === undefined ? '<span class="faint">—</span>' : `<span class="score ${scoreCls(v)}" style="font-size:15px">${fmtScore(v)}</span>`);
