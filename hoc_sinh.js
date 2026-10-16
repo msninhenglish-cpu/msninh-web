@@ -59,11 +59,12 @@ function hsFormThem(ov, goiY) {
     <div class="field"><label class="f">Ngày sinh</label><input class="input" type="date" name="ns"></div>
     <div class="field"><label class="f">Ngày nhập học</label><input class="input" type="date" name="ngay" value="${hsHomNay()}"></div>
     <div class="field"><label class="f">SĐT / Zalo phụ huynh (không bắt buộc, chỉ cô xem)</label><input class="input" name="sdt" inputmode="tel" maxlength="30"></div>
+    <div class="field"><label class="f">Tên phụ huynh (vd: Chị Lan – mẹ)</label><input class="input" name="tph" maxlength="80"></div>
     <div class="field"><label class="f">Ghi chú</label><textarea class="input" name="gc" rows="2" maxlength="500"></textarea></div>
     <div id="hsLoi"></div><button class="btn btn-primary btn-block">Thêm học sinh</button></form>`);
   ACT.hsLuuThem = (f) => busy(f.querySelector("button.btn-primary"), async () => {
     try {
-      const r = await api("t_them_hoc_sinh", { p: { ma_hs: f.ma.value.trim(), ho_ten: f.ten.value, class_id: f.lop.value ? Number(f.lop.value) : null, ngay_sinh: f.ns.value || null, ngay_nhap_hoc: f.ngay.value, sdt_phu_huynh: f.sdt.value, ghi_chu: f.gc.value } });
+      const r = await api("t_them_hoc_sinh", { p: { ma_hs: f.ma.value.trim(), ho_ten: f.ten.value, class_id: f.lop.value ? Number(f.lop.value) : null, ngay_sinh: f.ns.value || null, ngay_nhap_hoc: f.ngay.value, sdt_phu_huynh: f.sdt.value, ten_phu_huynh: f.tph.value, ghi_chu: f.gc.value } });
       closeSheet();
       alert(`Đã thêm ${f.ten.value.trim()}\nMã học sinh: ${r.ma_hs}\nMật khẩu lần đầu: ${r.pin}\n(Em đăng nhập lần đầu sẽ phải đặt mật khẩu riêng.)`);
       route();
@@ -72,7 +73,7 @@ function hsFormThem(ov, goiY) {
 }
 
 /* ---------------- Ho so 1 em ---------------- */
-const HS_TRUONG = { tao: "Tạo hồ sơ", ngay_sinh: "Ngày sinh", ho_ten: "Họ tên", lop: "Lớp", trang_thai: "Trạng thái", ngay_nhap_hoc: "Ngày nhập học", sdt_phu_huynh: "SĐT phụ huynh", ghi_chu: "Ghi chú", dat_lai_mk: "Đặt lại mật khẩu" };
+const HS_TRUONG = { tao: "Tạo hồ sơ", ten_phu_huynh: "Tên phụ huynh", ngay_sinh: "Ngày sinh", ho_ten: "Họ tên", lop: "Lớp", trang_thai: "Trạng thái", ngay_nhap_hoc: "Ngày nhập học", sdt_phu_huynh: "SĐT phụ huynh", ghi_chu: "Ghi chú", dat_lai_mk: "Đặt lại mật khẩu" };
 function hsGiaTri(v) {
   if (v === null || v === undefined) return "—";
   if (typeof v === "object") {
@@ -96,7 +97,7 @@ async function tHoSo(id) {
     <div class="card" style="margin-top:8px">
       <div class="row between" style="gap:8px;flex-wrap:wrap"><h1 style="margin:0">${esc(h.ho_ten)}</h1>${hsTT(h.trang_thai)}</div>
       <p style="margin:6px 0">Mã <b>${esc(h.ma_hs)}</b> · ${esc(h.lop || "Chưa xếp lớp")}${h.ngay_sinh ? " · 🎂 " + esc(hsNgay(h.ngay_sinh)) : ""}${h.ngay_nhap_hoc ? " · nhập học " + esc(hsNgay(h.ngay_nhap_hoc)) : ""}</p>
-      <p class="small muted" style="margin:4px 0">📞 Phụ huynh: ${h.sdt_phu_huynh ? `<a href="tel:${esc(h.sdt_phu_huynh.replace(/[^0-9+]/g, ""))}">${esc(h.sdt_phu_huynh)}</a> · <a href="https://zalo.me/${esc(h.sdt_phu_huynh.replace(/[^0-9]/g, ""))}" target="_blank" rel="noopener">Zalo</a>` : "chưa có"}
+      <p class="small muted" style="margin:4px 0">📞 Phụ huynh${h.ten_phu_huynh ? " (" + esc(h.ten_phu_huynh) + ")" : ""}: ${h.sdt_phu_huynh ? `<a href="tel:${esc(h.sdt_phu_huynh.replace(/[^0-9+]/g, ""))}">${esc(h.sdt_phu_huynh)}</a> · <a href="https://zalo.me/${esc(h.sdt_phu_huynh.replace(/[^0-9]/g, ""))}" target="_blank" rel="noopener">Zalo</a>` : "chưa có"}
         ${h.ghi_chu ? "<br>📝 " + esc(h.ghi_chu) : ""}<br>🔑 ${h.initial_pin ? "Chưa đặt mật khẩu riêng (mã lần đầu: <code>" + esc(h.initial_pin) + "</code>)" : "Em đã đặt mật khẩu riêng"} · đăng nhập gần nhất: ${h.last_login ? fmtDT(h.last_login) : "chưa"}</p>
       <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px">
         <button class="btn btn-sm" data-act="hsSua">✏️ Sửa thông tin</button><button class="btn btn-sm" data-act="hsLop">🏫 Chuyển lớp</button>
@@ -123,9 +124,10 @@ async function tHoSo(id) {
       <div class="field"><label class="f">Ngày sinh</label><input class="input" type="date" name="ns" value="${esc(h.ngay_sinh || "")}"></div>
       <div class="field"><label class="f">Ngày nhập học</label><input class="input" type="date" name="ngay" value="${esc(h.ngay_nhap_hoc || "")}"></div>
       <div class="field"><label class="f">SĐT / Zalo phụ huynh (chỉ cô xem)</label><input class="input" name="sdt" inputmode="tel" value="${esc(h.sdt_phu_huynh || "")}" maxlength="30"></div>
+      <div class="field"><label class="f">Tên phụ huynh</label><input class="input" name="tph" value="${esc(h.ten_phu_huynh || "")}" maxlength="80"></div>
       <div class="field"><label class="f">Ghi chú</label><textarea class="input" name="gc" rows="2" maxlength="500">${esc(h.ghi_chu || "")}</textarea></div>
       <button class="btn btn-primary btn-block">Lưu</button></form>`);
-    ACT.hsLuuSua = (f) => busy(f.querySelector("button.btn-primary"), () => luu(null, { ho_ten: f.ten.value, ngay_sinh: f.ns.value || null, ngay_nhap_hoc: f.ngay.value || null, sdt_phu_huynh: f.sdt.value, ghi_chu: f.gc.value }));
+    ACT.hsLuuSua = (f) => busy(f.querySelector("button.btn-primary"), () => luu(null, { ho_ten: f.ten.value, ngay_sinh: f.ns.value || null, ngay_nhap_hoc: f.ngay.value || null, sdt_phu_huynh: f.sdt.value, ten_phu_huynh: f.tph.value, ghi_chu: f.gc.value }));
   };
   ACT.hsLop = () => {
     openSheet(`<form data-submit="hsLuuLop"><div class="row between"><h2 style="margin:0">🏫 Chuyển lớp</h2><button type="button" class="icon-btn" data-act="closeSheet">✕</button></div>
@@ -181,7 +183,7 @@ async function tNhanXet(query) {
 /* ---------------- Nhap / xuat Excel danh sach HS ---------------- */
 function hsNgay(iso) { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ""); return m ? `${m[3]}/${m[2]}/${m[1]}` : ""; }
 const HS_COT = [["ma_hs", "Mã học sinh"], ["ho_ten", "Họ và tên"], ["lop", "Lớp"], ["ngay_sinh", "Ngày sinh"], ["ngay_nhap_hoc", "Ngày nhập học"],
-  ["sdt_phu_huynh", "SĐT phụ huynh"], ["ghi_chu", "Ghi chú"], ["trang_thai", "Trạng thái"]];
+  ["sdt_phu_huynh", "SĐT phụ huynh"], ["ten_phu_huynh", "Tên phụ huynh"], ["ghi_chu", "Ghi chú"], ["trang_thai", "Trạng thái"]];
 function hsTaiXlsx() {
   if (window.xlsxMini) return Promise.resolve();
   return new Promise((ok, loi) => { const s = document.createElement("script"); s.src = "xlsx_mini.js?v=2"; s.onload = ok; s.onerror = () => loi(new Error("Không tải được bộ đọc Excel.")); document.head.appendChild(s); });
@@ -190,7 +192,7 @@ async function hsXuatExcel() {
   try {
     await hsTaiXlsx();
     const d = await api("t_ds_hoc_sinh", { p: { trang_thai: "tat_ca" } });
-    const rows = [HS_COT.map((c) => c[1])].concat(d.rows.map((r) => [r.ma_hs, r.ho_ten, r.lop || "", hsNgay(r.ngay_sinh), hsNgay(r.ngay_nhap_hoc), r.sdt_phu_huynh || "", r.ghi_chu || "", (HS_TT[r.trang_thai] || [r.trang_thai])[0]]));
+    const rows = [HS_COT.map((c) => c[1])].concat(d.rows.map((r) => [r.ma_hs, r.ho_ten, r.lop || "", hsNgay(r.ngay_sinh), hsNgay(r.ngay_nhap_hoc), r.sdt_phu_huynh || "", r.ten_phu_huynh || "", r.ghi_chu || "", (HS_TT[r.trang_thai] || [r.trang_thai])[0]]));
     const a = document.createElement("a");
     a.href = URL.createObjectURL(xlsxMini.taoXlsx(rows, "Học sinh"));
     a.download = `danh_sach_hoc_sinh_${hsHomNay()}.xlsx`;
@@ -222,7 +224,7 @@ function hsNhapExcel() {
       const viTri = {};
       HS_COT.forEach(([key, ten]) => {
         const t = boDau(ten).toLowerCase();
-        const j = tieuDe.findIndex((h) => h === t || (key === "ma_hs" && /^ma\b/.test(h)) || (key === "ho_ten" && /ho.*ten/.test(h)) || (key === "sdt_phu_huynh" && /sdt|dien thoai|zalo/.test(h)));
+        const j = tieuDe.findIndex((h) => h === t || (key === "ma_hs" && /^ma\b/.test(h)) || (key === "ho_ten" && /ho.*ten/.test(h)) || (key === "sdt_phu_huynh" && /sdt|dien thoai|zalo/.test(h)) || (key === "ten_phu_huynh" && /ten.*phu huynh|ten ph\b/.test(h)));
         if (j >= 0) viTri[key] = j;
       });
       if (viTri.ma_hs === undefined) throw new Error("Không thấy cột «Mã học sinh» ở dòng đầu. Cô dùng file «📤 Xuất Excel» làm mẫu nhé.");
@@ -234,7 +236,7 @@ function hsNhapExcel() {
         return o;
       });
       const xt = await api("t_nhap_hoc_sinh", { p_rows: rows, p_ghi: false });
-      const TEN = { ho_ten: "tên", lop: "lớp", ngay_sinh: "ngày sinh", ngay_nhap_hoc: "nhập học", sdt_phu_huynh: "SĐT", ghi_chu: "ghi chú", trang_thai: "trạng thái" };
+      const TEN = { ten_phu_huynh: "tên PH", ho_ten: "tên", lop: "lớp", ngay_sinh: "ngày sinh", ngay_nhap_hoc: "nhập học", sdt_phu_huynh: "SĐT", ghi_chu: "ghi chú", trang_thai: "trạng thái" };
       const nhom = (loai) => xt.rows.filter((r) => r.loai === loai);
       k().innerHTML = `<p><b>${esc(f.name)}</b>: ${rows.length} dòng · <span class="badge hw">＋ ${xt.them} thêm</span> <span class="badge gold">✏️ ${xt.sua} sửa</span> <span class="badge">${xt.giu} giữ nguyên</span> <span class="badge exam">⚠️ ${xt.loi} lỗi</span></p>
         <p class="small muted">Chưa ghi gì. Cô xem lại rồi bấm «Ghi vào hệ thống». Dòng lỗi sẽ bị bỏ qua. Ô để trống / cột không có trong file thì giữ nguyên dữ liệu cũ.</p>

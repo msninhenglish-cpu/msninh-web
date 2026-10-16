@@ -273,7 +273,7 @@ function moChamSoc(query) {
   if (window.tChamSoc) return tChamSoc(query);
   app.innerHTML = tShell("chamsoc", spinner());
   const s = document.createElement("script");
-  s.src = "cham_soc.js?v=2";
+  s.src = "cham_soc.js?v=3";
   s.onload = () => tChamSoc(query);
   s.onerror = () => { app.querySelector("main").innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
   document.head.appendChild(s);
@@ -283,7 +283,7 @@ function moHocSinh(chay) {
   if (window.tHocSinh) return chay();
   app.innerHTML = tShell("hocsinh", spinner());
   const s = document.createElement("script");
-  s.src = "hoc_sinh.js?v=3";
+  s.src = "hoc_sinh.js?v=4";
   s.onload = () => chay();
   s.onerror = () => { app.querySelector("main").innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
   document.head.appendChild(s);
@@ -1675,6 +1675,13 @@ function tAccount() {
       veKhoaMay();
     } catch (e) { toast(e.message, 4000); }
   });
+  ACT["ch:khoaSdt"] = async (el) => {
+    const bat = el.checked;
+    if (bat && !confirm(`Cho phép khoá «${el.dataset.t}» đọc SĐT phụ huynh?\nChỉ bật cho phần mềm trên máy của cô (vd phần mềm điểm danh gửi Zalo). Mỗi lần đọc đều được ghi lại.`)) { el.checked = false; return; }
+    el.disabled = true;
+    try { await api("t_dat_quyen_khoa", { p_id: Number(el.dataset.id), p_doc_sdt: bat }); toast(bat ? "Đã cho phép đọc SĐT" : "Đã tắt quyền đọc SĐT"); veKhoaMay(); }
+    catch (e) { el.checked = !bat; toast(e.message, 4000); } finally { el.disabled = false; }
+  };
   ACT.thuhoi = (btn) => {
     if (!confirm(`Thu hồi khoá «${btn.dataset.t}»? Phần mềm đang dùng khoá này sẽ không gửi được dữ liệu nữa.`)) return;
     busy(btn, async () => { try { await api("t_thu_hoi_khoa_may", { p_id: Number(btn.dataset.id) }); toast("Đã thu hồi"); veKhoaMay(); } catch (e) { toast(e.message); } });
@@ -1783,6 +1790,8 @@ async function veKhoaMay() {
   try { ds = await api("t_ds_khoa_may"); } catch (e) { box.innerHTML = errBox(e); return; }
   box.innerHTML = ds.length ? ds.map((k) => `<div class="dd-row">
       <span><b>${esc(k.ten)}</b><br><span class="small muted"><span class="code">${esc(k.key_prefix)}…</span> · tạo ${ngayVN(k.created_at)}${k.last_used_at ? " · dùng lần cuối " + fmtDT(k.last_used_at) : " · chưa dùng"}</span></span>
+      ${k.revoked_at ? "" : `<br><label class="check small" style="margin-top:4px"><input type="checkbox" data-ch="khoaSdt" data-id="${k.id}" data-t="${esc(k.ten)}" ${k.doc_sdt ? "checked" : ""}> 📞 Cho phép đọc SĐT phụ huynh</label>
+        ${Number(k.doc_sdt_lan) ? `<span class="small muted"> · đã đọc ${k.doc_sdt_lan} lần, gần nhất ${fmtDT(k.doc_sdt_luc)}</span>` : ""}`}</span>
       ${k.revoked_at ? '<span class="badge">Đã thu hồi</span>' : `<button class="btn btn-sm btn-danger" data-act="thuhoi" data-id="${k.id}" data-t="${esc(k.ten)}">Thu hồi</button>`}</div>`).join("")
     : '<p class="muted small">Chưa có khoá nào.</p>';
 }

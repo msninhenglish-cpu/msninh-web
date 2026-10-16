@@ -1,6 +1,6 @@
 /* Trang GV "💌 Cham soc" (#/t/cham-soc): ⚠️ Can quan tam + 🎂 Sinh nhat · 📤 Gui phu huynh · 📊 Bao cao thang · ✉️ Mau tin.
- * Gui Zalo kieu BAN TU DONG: GV bam -> chep tin + mo zalo.me/<SDT phu huynh>, GV tu bam gui trong Zalo.
- * KHONG tu dong hoa Zalo ca nhan (vi pham dieu khoan Zalo). Nhat ky gui o bang gui_phu_huynh (de sau cam Zalo OA / ZNS).
+ * Gui qua Zalo ca nhan cua trung tam (co chot 16/10/2026), BAN TU DONG: GV bam -> chep anh phieu / chep tin + mo zalo.me/<SDT>,
+ * GV tu dan va bam Gui trong Zalo. Anh phieu ve bang canvas (phieu_anh.js). Nhat ky gui o bang gui_phu_huynh.
  * Tin co ten + hoc phi cua con -> chi mo dung SDT phu huynh cua em do. Chi tai file nay khi GV mo muc nay. */
 
 const CS = { tab: "quan_tam", cls: "", thang: "", loai: "hoc_phi", han: "", mau: null };
@@ -147,6 +147,27 @@ async function csQuanTam() {
       : '<div class="empty">🎉 Không có em nào cần quan tâm đặc biệt.</div>'}`;
 }
 
+function csTaiPhieuAnh() {
+  if (window.phieuAnh) return Promise.resolve();
+  return new Promise((ok, loi) => { const s = document.createElement("script"); s.src = "phieu_anh.js?v=1"; s.onload = ok; s.onerror = () => loi(new Error("Không tải được bộ vẽ phiếu ảnh.")); document.head.appendChild(s); });
+}
+const CS_CO_CHEP_ANH = typeof ClipboardItem !== "undefined" && !!(navigator.clipboard && navigator.clipboard.write);
+// Chep anh phieu vao clipboard (giu cu chi bam bang ClipboardItem nhan Promise). Khong ho tro -> tai anh xuong.
+async function csChepAnh(r, ten) {
+  const p = csTaiPhieuAnh().then(() => phieuAnh.vePhieu(CS.loai, r, CS.thang, CS.han));
+  if (CS_CO_CHEP_ANH) {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": p.then((b) => { if (!b) throw new Error("Chưa có dữ liệu để vẽ phiếu."); return b; }) })]);
+      return "chep";
+    } catch (e) { /* roi xuong tai anh */ }
+  }
+  const b = await p;
+  if (!b) throw new Error("Chưa có dữ liệu để vẽ phiếu.");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(b); a.download = (ten || "phieu") + ".png";
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+  return "tai";
+}
+
 async function csGui() {
   const k = document.getElementById("csNoi");
   if (!CS.cls) { k.innerHTML = '<div class="alert alert-warn">Chọn một lớp để gửi phụ huynh.</div>'; return; }
@@ -154,6 +175,7 @@ async function csGui() {
   k.innerHTML = spinner();
   let d;
   try { d = await api("t_du_lieu_tin", { p: { class_id: Number(CS.cls), thang: CS.thang } }); } catch (e) { k.innerHTML = errBox(e); return; }
+  csTaiPhieuAnh().catch(() => {});   // tai truoc bo ve phieu
   const ky = CS.loai === "nhan_xet_tuan" ? (d.tuan_tu || "") : CS.thang;
   const rows = d.rows.map((r) => {
     const gui = (r.da_gui || {})[CS.loai + "|" + ky];
@@ -163,53 +185,84 @@ async function csGui() {
     else if (CS.loai === "nhan_xet_tuan" && !r.nhan_xet) canhBao = "Chưa có nhận xét tuần";
     return Object.assign(r, { tin: csDien(CS.loai, r), gui, canhBao, kiemTra: gui && ["da_kiem_tra", "da_mo_zalo", "da_gui"].includes(gui.trang_thai) });
   });
-  CS.rows = rows;
+  CS.buoc = null;   // gui lan luot: {i, buoc: 'anh' | 'tin'}
+  const tt = (r) => (r.gui ? r.gui.trang_thai : "");
+  const tenTep = (r) => `${CS.loai}_${r.ma_hs}_${boDau(r.ho_ten).replace(/\s+/g, "_")}`;
+  const nutLon = () => {
+    const b = CS.buoc;
+    if (b) { const r = rows[b.i]; return b.buoc === "anh" ? `▶ Bước 1/2 · ${esc(r.ho_ten)}: chép ẢNH + mở Zalo` : `▶ Bước 2/2 · ${esc(r.ho_ten)}: chép TIN nhắn`; }
+    return "▶ Gửi lần lượt (em tiếp theo)";
+  };
   const ve = () => {
-    const coSdt = rows.filter((r) => r.sdt), daMo = rows.filter((r) => r.gui && r.gui.trang_thai === "da_mo_zalo").length;
+    const coSdt = rows.filter((r) => r.sdt), xong = rows.filter((r) => tt(r) === "da_gui").length;
     k.innerHTML = `<div class="filters"><select class="input" data-ch="csLoai">${Object.entries(CS_LOAI).map(([v, t]) => `<option value="${v}" ${v === CS.loai ? "selected" : ""}>${t}</option>`).join("")}</select>
         ${CS.loai === "hoc_phi" ? `<label class="small">Hạn đóng <input class="input" data-ch="csHan" value="${esc(CS.han)}" style="width:120px;display:inline-block"></label>` : ""}</div>
-      <p class="small muted">${CS.loai === "nhan_xet_tuan" ? `Tuần từ ${d.tuan_tu ? esc(ngayVN(d.tuan_tu)) : "—"} · ` : ""}${rows.length} em · ${coSdt.length} có SĐT · ${rows.filter((r) => r.kiemTra).length} đã kiểm tra · ${daMo} đã mở Zalo.
-        Cô đọc từng tin, sửa nếu cần, tích «Đã kiểm tra». Rồi bấm «▶ Gửi em tiếp theo»: máy chép tin + mở Zalo đúng số phụ huynh, cô dán và bấm gửi trong Zalo.</p>
+      <p class="small muted">${CS.loai === "nhan_xet_tuan" ? `Tuần từ ${d.tuan_tu ? esc(ngayVN(d.tuan_tu)) : "—"} · ` : ""}${rows.length} em · ${coSdt.length} có SĐT · ${rows.filter((r) => r.kiemTra).length} đã kiểm tra · ${xong} đã gửi.
+        Cô xem lại tin + ảnh (👁), tích «Đã kiểm tra». Rồi bấm nút lớn: <b>bước 1</b> chép ẢNH phiếu và mở Zalo đúng phụ huynh → cô dán (Ctrl+V) ảnh vào khung chat; <b>bước 2</b> chép TIN → cô dán tin rồi bấm Gửi trong Zalo.
+        ${CS_CO_CHEP_ANH ? "" : "<br>⚠️ Trình duyệt này không chép được ảnh: ảnh sẽ được tải xuống, cô gửi ảnh từ thư mục Tải về."}</p>
       <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px"><button class="btn btn-sm" data-act="csKtHet">✅ Kiểm tra xong tất cả</button>
-        <button class="btn btn-sm btn-gold" data-act="csTiep">▶ Gửi em tiếp theo</button><button class="btn btn-sm btn-ghost" data-act="csNhatKy">🗂 Nhật ký gửi</button></div>
-      ${rows.map((r, i) => `<div class="card cs-hang ${!r.sdt ? "thieu" : r.gui && r.gui.trang_thai === "da_mo_zalo" ? "mo" : r.kiemTra ? "kt" : ""}" id="csH${i}">
+        <button class="btn btn-gold" data-act="csTiep" style="font-size:16px">${nutLon()}</button>${CS.buoc ? '<button class="btn btn-sm btn-ghost" data-act="csBoQua">Bỏ qua em này</button>' : ""}
+        <button class="btn btn-sm btn-ghost" data-act="csNhatKy">🗂 Nhật ký gửi</button></div>
+      ${rows.map((r, i) => `<div class="card cs-hang ${!r.sdt ? "thieu" : tt(r) === "da_gui" || tt(r) === "da_mo_zalo" ? "mo" : r.kiemTra ? "kt" : ""}" id="csH${i}" ${CS.buoc && CS.buoc.i === i ? 'style="outline:3px solid #f5b301"' : ""}>
         <div class="row between" style="gap:6px;flex-wrap:wrap"><span><b>${esc(r.ma_hs)} ${esc(r.ho_ten)}</b> · ${r.sdt ? "📞 " + esc(r.sdt) : '<a href="#/t/hs/' + r.user_id + '" style="color:var(--bad)">⚠️ Thiếu SĐT — nhập ở hồ sơ</a>'}</span>
-          <span class="small">${r.gui && r.gui.trang_thai === "da_mo_zalo" ? `✅ Đã mở Zalo ${r.gui.so_lan_mo > 1 ? "(" + r.gui.so_lan_mo + " lần) " : ""}· ${esc(r.gui.boi || "")} ${fmtDT(r.gui.cap_nhat)}` : r.kiemTra ? "☑️ Đã kiểm tra" : "Chưa kiểm tra"}</span></div>
+          <span class="small">${tt(r) === "da_gui" ? `✅ Đã gửi · ${esc(r.gui.boi || "")} ${fmtDT(r.gui.cap_nhat)}` : tt(r) === "da_mo_zalo" ? "📨 Đã gửi ảnh, chưa gửi tin" : r.kiemTra ? "☑️ Đã kiểm tra" : "Chưa kiểm tra"}</span></div>
         ${r.canhBao ? `<div class="small" style="color:#b45309">⚠️ ${esc(r.canhBao)}</div>` : ""}
         <textarea class="input cs-tin" data-i="${i}" data-in="csSuaTin">${esc(r.tin)}</textarea>
         <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap"><label class="check"><input type="checkbox" data-ch="csKt" data-i="${i}" ${r.kiemTra ? "checked" : ""}> Đã kiểm tra</label>
-          <button class="btn btn-sm" data-act="csChepI" data-i="${i}">📋 Chép</button><button class="btn btn-sm" data-act="csZaloI" data-i="${i}" ${r.sdt ? "" : "disabled"}>💬 Chép + mở Zalo</button></div></div>`).join("")}`;
+          <button class="btn btn-sm" data-act="csXemAnh" data-i="${i}">👁 Xem ảnh</button>
+          <button class="btn btn-sm" data-act="csChepI" data-i="${i}">📋 Chép tin</button>
+          <button class="btn btn-sm" data-act="csAnhI" data-i="${i}">🖼 ${CS_CO_CHEP_ANH ? "Chép ảnh" : "Tải ảnh"}</button>
+          <button class="btn btn-sm" data-act="csZaloI" data-i="${i}" ${r.sdt ? "" : "disabled"}>💬 Mở Zalo</button></div></div>`).join("")}`;
   };
-  const ghi = async (r, tt) => {
-    try { const g = await api("t_ghi_gui", { p: { user_id: r.user_id, loai: CS.loai, ky, trang_thai: tt, noi_dung: r.tin } }); r.gui = { trang_thai: g.trang_thai, so_lan_mo: g.so_lan_mo, cap_nhat: g.cap_nhat, boi: S.user && S.user.code }; r.kiemTra = true; }
+  const ghi = async (r, trangThai) => {
+    try { const g = await api("t_ghi_gui", { p: { user_id: r.user_id, loai: CS.loai, ky, trang_thai: trangThai, noi_dung: r.tin } }); r.gui = { trang_thai: g.trang_thai, so_lan_mo: g.so_lan_mo, cap_nhat: g.cap_nhat, boi: S.user && S.user.code }; r.kiemTra = true; }
     catch (e) { toast(e.message, 4000); }
   };
-  const moZalo = async (i) => {
-    const r = rows[i];
-    if (!r.sdt) { toast("Em này chưa có SĐT phụ huynh."); return; }
-    await csChep(r.tin); csMoZalo(r.sdt); await ghi(r, "da_mo_zalo"); ve();
-    const el = document.getElementById("csH" + i); if (el) el.scrollIntoView({ block: "center" });
-    toast(`Đã chép tin của ${r.ho_ten} và mở Zalo. Dán vào khung chat rồi bấm gửi.`, 4500);
-  };
+  const cuon = (i) => { const el = document.getElementById("csH" + i); if (el) el.scrollIntoView({ block: "center" }); };
   ACT["ch:csLoai"] = (el) => { CS.loai = el.value; csGui(); };
   ACT["ch:csHan"] = (el) => { CS.han = el.value; rows.forEach((r) => { r.tin = csDien(CS.loai, r); }); ve(); };
   ACT["in:csSuaTin"] = (el) => { rows[Number(el.dataset.i)].tin = el.value; };
   ACT["ch:csKt"] = async (el) => { const r = rows[Number(el.dataset.i)]; if (el.checked) { await ghi(r, "da_kiem_tra"); } else { r.kiemTra = false; } ve(); };
   ACT.csKtHet = async (b) => busy(b, async () => { for (const r of rows) if (!r.kiemTra && r.sdt && !r.canhBao) await ghi(r, "da_kiem_tra"); ve(); toast("Đã đánh dấu kiểm tra các em có SĐT (bỏ qua em có cảnh báo)."); });
-  ACT.csChepI = async (b) => toast((await csChep(rows[Number(b.dataset.i)].tin)) ? "Đã chép" : "Không chép được", 2500);
-  ACT.csZaloI = (b) => moZalo(Number(b.dataset.i));
-  ACT.csTiep = () => {
-    const i = rows.findIndex((r) => r.sdt && r.kiemTra && !(r.gui && r.gui.trang_thai === "da_mo_zalo"));
-    if (i < 0) { toast(rows.some((r) => r.sdt && !r.kiemTra) ? "Còn em chưa tích «Đã kiểm tra»." : "🎉 Đã mở Zalo cho tất cả em đã kiểm tra.", 4000); return; }
-    moZalo(i);
+  ACT.csChepI = async (b) => toast((await csChep(rows[Number(b.dataset.i)].tin)) ? "Đã chép tin" : "Không chép được", 2500);
+  ACT.csAnhI = async (b) => { try { const kq = await csChepAnh(rows[Number(b.dataset.i)], tenTep(rows[Number(b.dataset.i)])); toast(kq === "chep" ? "Đã chép ảnh phiếu — dán (Ctrl+V) vào Zalo" : "Đã tải ảnh phiếu xuống", 3000); } catch (e) { toast(e.message, 4000); } };
+  ACT.csZaloI = (b) => { if (!csMoZalo(rows[Number(b.dataset.i)].sdt)) toast("Em này chưa có SĐT phụ huynh."); };
+  ACT.csXemAnh = async (b) => {
+    const r = rows[Number(b.dataset.i)];
+    openSheet(`<div class="row between"><h2 style="margin:0">👁 Ảnh phiếu · ${esc(r.ho_ten)}</h2><button type="button" class="icon-btn" data-act="closeSheet">✕</button></div><div id="csXem">${spinner()}</div>`);
+    try {
+      await csTaiPhieuAnh(); const bl = await phieuAnh.vePhieu(CS.loai, r, CS.thang, CS.han);
+      document.getElementById("csXem").innerHTML = bl ? `<img src="${URL.createObjectURL(bl)}" alt="Ảnh phiếu" style="width:100%;border-radius:12px">` : errBox("Chưa có dữ liệu để vẽ phiếu (ví dụ chưa có nhận xét tuần).");
+    } catch (e) { document.getElementById("csXem").innerHTML = errBox(e); }
+  };
+  ACT.csBoQua = () => { CS.buoc = null; ve(); };
+  ACT.csTiep = async () => {
+    if (!CS.buoc) {
+      const i = rows.findIndex((r) => r.sdt && r.kiemTra && tt(r) !== "da_gui");
+      if (i < 0) { toast(rows.some((r) => r.sdt && !r.kiemTra) ? "Còn em chưa tích «Đã kiểm tra»." : "🎉 Đã gửi xong tất cả em đã kiểm tra.", 4000); return; }
+      CS.buoc = { i, buoc: "anh" };
+    }
+    const r = rows[CS.buoc.i];
+    if (CS.buoc.buoc === "anh") {
+      try {
+        const kq = await csChepAnh(r, tenTep(r));
+        csMoZalo(r.sdt); await ghi(r, "da_mo_zalo");
+        CS.buoc.buoc = "tin"; ve(); cuon(CS.buoc.i);
+        toast(kq === "chep" ? `Đã chép ẢNH phiếu của ${r.ho_ten} và mở Zalo. Dán ảnh (Ctrl+V) vào khung chat rồi bấm bước 2.` : `Đã tải ảnh phiếu và mở Zalo. Gửi ảnh vừa tải rồi bấm bước 2.`, 6000);
+      } catch (e) { toast(e.message, 4500); }
+    } else {
+      await csChep(r.tin); await ghi(r, "da_gui");
+      CS.buoc = null; ve(); cuon(rows.indexOf(r));
+      toast(`Đã chép TIN của ${r.ho_ten}. Dán vào Zalo rồi bấm Gửi. Bấm nút lớn để sang em tiếp theo.`, 6000);
+    }
   };
   ACT.csNhatKy = async () => {
     openSheet(`<div class="row between"><h2 style="margin:0">🗂 Nhật ký gửi</h2><button type="button" class="icon-btn" data-act="closeSheet">✕</button></div><div id="csNk">${spinner()}</div>`);
     try {
       const nk = await api("t_nhat_ky_gui", { p: { class_id: Number(CS.cls) } });
-      const TT = { cho: "Chờ", da_kiem_tra: "Đã kiểm tra", da_mo_zalo: "Đã mở Zalo", da_gui: "Đã gửi", loi: "Lỗi" };
+      const TT = { cho: "Chờ", da_kiem_tra: "Đã kiểm tra", da_mo_zalo: "Đã gửi ảnh", da_gui: "Đã gửi ảnh + tin", loi: "Lỗi" };
       document.getElementById("csNk").innerHTML = nk.length ? nk.map((g) => `<div style="padding:6px 0;border-bottom:1px solid #eef1f8"><b>${esc(g.ma_hs)} ${esc(g.ho_ten)}</b> · ${esc((CS_LOAI[g.loai] || (CS.mau.find((m) => m.ma === g.loai) || {}).ten || g.loai))}${g.ky ? " · " + esc(g.ky) : ""}
-        <div class="small muted">${esc(TT[g.trang_thai] || g.trang_thai)}${g.so_lan_mo > 1 ? " (" + g.so_lan_mo + " lần)" : ""} · ${esc(g.boi || "")} · ${fmtDT(g.cap_nhat)}</div></div>`).join("") : '<div class="empty small">Chưa gửi lần nào.</div>';
+        <div class="small muted">${esc(TT[g.trang_thai] || g.trang_thai)}${g.so_lan_mo > 1 ? " (mở Zalo " + g.so_lan_mo + " lần)" : ""} · ${esc(g.boi || "")} · ${fmtDT(g.cap_nhat)}</div></div>`).join("") : '<div class="empty small">Chưa gửi lần nào.</div>';
     } catch (e) { document.getElementById("csNk").innerHTML = errBox(e); }
   };
   ve();
@@ -230,12 +283,36 @@ async function csBaoCao() {
 function csMau() {
   const k = document.getElementById("csNoi");
   const BIEN = ["{ten_hs}", "{ma_hs}", "{lop}", "{thang}", "{so_buoi}", "{so_tien}", "{ngan_hang}", "{stk}", "{chu_tk}", "{noi_dung_ck}", "{han}", "{so_bai}", "{ten_bai}", "{han_bai}", "{ngay}", "{ky}", "{tom_tat}", "{link}"];
-  k.innerHTML = `<p class="small muted">Chữ trong ngoặc nhọn được điền tự động theo từng em: ${BIEN.map((b) => `<code>${b}</code>`).join(" ")}</p>
+  k.innerHTML = `<div class="card"><b>📱 QR Zalo trung tâm</b><div class="small muted">Ảnh mã QR Zalo của trung tâm — in kèm phiếu / đưa phụ huynh quét để kết bạn trước (Zalo cá nhân nhắn người lạ dễ bị chặn).</div>
+      <div id="csQr" style="margin-top:8px">${spinner()}</div></div>
+    <p class="small muted">Chữ trong ngoặc nhọn được điền tự động theo từng em: ${BIEN.map((b) => `<code>${b}</code>`).join(" ")}</p>
     ${CS.mau.map((m) => `<div class="card"><div class="row between"><b>${esc(m.ten)}</b>${m.da_sua ? '<span class="badge gold">Đã sửa</span>' : '<span class="badge">Mặc định</span>'}</div>
       <textarea class="input cs-tin" id="csM_${m.ma}" maxlength="2000">${esc(m.noi_dung)}</textarea>
       <div class="row" style="gap:6px;margin-top:6px"><button class="btn btn-sm btn-primary" data-act="csLuuMau" data-m="${m.ma}">Lưu</button>
         ${m.da_sua ? `<button class="btn btn-sm btn-ghost" data-act="csGocMau" data-m="${m.ma}">Khôi phục mặc định</button>` : ""}</div></div>`).join("")}`;
   const tai = async () => { CS.mau = await api("t_ds_mau_tin"); csMau(); };
+  const veQr = async () => {
+    const q = document.getElementById("csQr"); if (!q) return;
+    try {
+      const a = await api("t_doc_anh_trung_tam", { p_ma: "qr_zalo" });
+      const src = a.co ? `data:${a.mime};base64,${a.b64}` : "";
+      q.innerHTML = `${src ? `<img src="${src}" alt="QR Zalo trung tâm" style="width:180px;height:180px;object-fit:contain;border:1px solid #eef1f8;border-radius:12px;background:#fff">` : '<p class="small">Chưa có ảnh QR.</p>'}
+        <div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap"><button class="btn btn-sm btn-primary" data-act="csQrTai">⬆ ${src ? "Đổi ảnh" : "Tải ảnh QR lên"}</button>
+        ${src ? `<a class="btn btn-sm" href="${src}" download="qr_zalo_ms_ninh.${a.mime === "image/png" ? "png" : "jpg"}">⬇ Tải về để in</a><button class="btn btn-sm btn-ghost" data-act="csQrXoa">Xoá</button>` : ""}</div>`;
+    } catch (e) { q.innerHTML = errBox(e); }
+  };
+  ACT.csQrTai = () => {
+    const inp = document.createElement("input"); inp.type = "file"; inp.accept = "image/png,image/jpeg,image/webp";
+    inp.onchange = async () => {
+      const f = inp.files[0]; if (!f) return;
+      if (f.size > 2 * 1024 * 1024) { toast("Ảnh quá lớn (tối đa 2 MB)."); return; }
+      const b64 = await new Promise((ok) => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(",")[1]); r.readAsDataURL(f); });
+      try { await api("t_luu_anh_trung_tam", { p_ma: "qr_zalo", p_mime: f.type || "image/png", p_b64: b64 }); toast("Đã lưu ảnh QR Zalo"); veQr(); } catch (e) { toast(e.message, 4000); }
+    };
+    inp.click();
+  };
+  ACT.csQrXoa = () => { if (confirm("Xoá ảnh QR Zalo?")) api("t_luu_anh_trung_tam", { p_ma: "qr_zalo", p_mime: null, p_b64: null }).then(veQr, (e) => toast(e.message)); };
+  veQr();
   ACT.csLuuMau = (b) => busy(b, async () => { try { await api("t_luu_mau_tin", { p_ma: b.dataset.m, p_noi_dung: document.getElementById("csM_" + b.dataset.m).value }); toast("Đã lưu mẫu"); await tai(); } catch (e) { toast(e.message, 4000); } });
   ACT.csGocMau = (b) => { if (confirm("Khôi phục mẫu mặc định?")) busy(b, async () => { try { await api("t_luu_mau_tin", { p_ma: b.dataset.m, p_noi_dung: null }); await tai(); } catch (e) { toast(e.message); } }); };
 }
