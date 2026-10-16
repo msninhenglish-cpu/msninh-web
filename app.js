@@ -205,6 +205,7 @@ async function route() {
         case "hoc-sinh": return moHocSinh(() => tHocSinh(query));
         case "hs": return moHocSinh(() => tHoSo(+p[2]));
         case "nhan-xet": return moHocSinh(() => tNhanXet(query));
+        case "cham-soc": return moChamSoc(query);
         case "account": return tAccount();
         default: return go("#/t");
       }
@@ -262,17 +263,27 @@ function sShell(tab, inner, opts) {
     ${opts.left || ""}<main>${inner}</main></div>`;
 }
 function tShell(tab, inner) {
-  const nav = [["home", "#/t", "▶️ Bài đã giao"], ["quizzes", "#/t/quizzes", "📚 Kho đề"], ["classes", "#/t/classes", "🏫 Lớp & học sinh"], ["hocsinh", "#/t/hoc-sinh", "👩‍🎓 Học sinh"], ["nhanxettuan", "#/t/nhan-xet", "📝 Nhận xét tuần"], ["buoihoc", "#/t/buoi-hoc", "📅 Buổi học"], ["hocphi", "#/t/hoc-phi", "💰 Học phí"], ["dangky", "#/t/dang-ky", "📩 Phiếu đăng ký"], ["suaweb", "#/t/sua-web", "✏️ Sửa website"], ["account", "#/t/account", "⚙️ Tài khoản"]];
+  const nav = [["home", "#/t", "▶️ Bài đã giao"], ["quizzes", "#/t/quizzes", "📚 Kho đề"], ["classes", "#/t/classes", "🏫 Lớp & học sinh"], ["hocsinh", "#/t/hoc-sinh", "👩‍🎓 Học sinh"], ["chamsoc", "#/t/cham-soc", "💌 Chăm sóc"], ["nhanxettuan", "#/t/nhan-xet", "📝 Nhận xét tuần"], ["buoihoc", "#/t/buoi-hoc", "📅 Buổi học"], ["hocphi", "#/t/hoc-phi", "💰 Học phí"], ["dangky", "#/t/dang-ky", "📩 Phiếu đăng ký"], ["suaweb", "#/t/sua-web", "✏️ Sửa website"], ["account", "#/t/account", "⚙️ Tài khoản"]];
   return `<div class="page wide">${topbar('<button class="btn btn-sm hide-sm" data-act="logout">Đăng xuất</button>')}
     <div class="tabs grid3">${nav.map((n) => `<a href="${n[1]}" class="${n[0] === tab ? "on" : ""}">${n[2]}</a>`).join("")}</div>
     <main>${inner}</main></div>`;
+}
+// Trang "Cham soc" (can quan tam, tin mau, gui phu huynh, bao cao thang) nam o cham_soc.js, chi tai khi giao vien mo
+function moChamSoc(query) {
+  if (window.tChamSoc) return tChamSoc(query);
+  app.innerHTML = tShell("chamsoc", spinner());
+  const s = document.createElement("script");
+  s.src = "cham_soc.js?v=2";
+  s.onload = () => tChamSoc(query);
+  s.onerror = () => { app.querySelector("main").innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
+  document.head.appendChild(s);
 }
 // Trang "Hoc sinh", "Ho so", "Nhan xet tuan" (GV) nam o hoc_sinh.js, chi tai khi giao vien mo
 function moHocSinh(chay) {
   if (window.tHocSinh) return chay();
   app.innerHTML = tShell("hocsinh", spinner());
   const s = document.createElement("script");
-  s.src = "hoc_sinh.js?v=1";
+  s.src = "hoc_sinh.js?v=3";
   s.onload = () => chay();
   s.onerror = () => { app.querySelector("main").innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
   document.head.appendChild(s);
@@ -860,12 +871,41 @@ function nxCss() {
     .nx-kq { padding: 6px 0; border-bottom: 1px solid #eef1f8; } .nx-ds { margin: 4px 0 0; padding-left: 20px; }`;
   document.head.appendChild(st);
 }
+// Bao cao thang (dung chung: HS xem, GV xem / in). b = ket qua _bao_cao_thang
+function bcTheHtml(b, tieuDe) {
+  const NG = { omr: "Phiếu chấm", tu_vung: "Từ vựng", online: "Online", mieng: "Kiểm tra miệng" };
+  const dd = b.diem_danh || {}, hp = b.hoc_phi, diem = b.diem || {};
+  return `<div class="card nx bc">
+    <h3 style="margin:0">${tieuDe ? esc(tieuDe) + " · " : ""}Báo cáo ${esc(thangVN(b.thang).toLowerCase())}</h3>
+    <div class="nx-so">
+      <div><b class="score ${b.diem_tb === null || b.diem_tb === undefined ? "" : scoreCls(b.diem_tb)}">${b.diem_tb === null || b.diem_tb === undefined ? "—" : fmtScore(b.diem_tb)}</b><span>điểm TB các bài</span></div>
+      <div><b>${dd.co_mat || 0}</b><span>buổi có mặt</span></div>
+      <div><b style="${dd.vang ? "color:var(--bad)" : ""}">${dd.vang || 0}</b><span>buổi vắng</span></div>
+      ${hp ? `<div><b style="font-size:16px">${hp.da_dong ? "✓ Đã đóng" : tien(hp.thanh_tien)}</b><span>học phí${hp.so_buoi !== null && hp.so_buoi !== undefined ? " · " + hp.so_buoi + " buổi" : ""}</span></div>` : ""}</div>
+    ${Object.keys(diem).length ? `<div class="section-title" style="margin-top:10px">Điểm theo loại bài</div>${Object.entries(diem).map(([k, v]) => `<div class="row between nx-kq"><span>${esc(NG[k] || k)} <span class="small muted">(${v.so_bai} bài)</span></span><b>${k === "mieng" ? fmtScore(v.tb) + "★" : fmtScore(v.tb)}</b></div>`).join("")}` : '<p class="small muted">Chưa có bài làm trong tháng.</p>'}
+    ${dd.ngay_vang && dd.ngay_vang.length ? `<p class="small muted">Vắng: ${dd.ngay_vang.map((n) => esc(nxNgay(n))).join(", ")}</p>` : ""}
+    ${(b.nhan_xet_tuan || []).length ? `<div class="section-title" style="margin-top:10px">Nhận xét các tuần</div>${b.nhan_xet_tuan.map((n) => `<div class="nx-kq"><b>Tuần ${nxNgay(n.tuan_tu)} – ${nxNgay(n.tuan_den)}</b>
+        ${n.noi_dung && n.noi_dung.thai_do === "tot" ? ' <span class="badge hw">Thái độ tốt</span>' : n.noi_dung && n.noi_dung.thai_do === "can_co_gang" ? ' <span class="badge gold">Cần cố gắng</span>' : ""}${n.cong_khai === false ? ' <span class="badge">Nháp</span>' : ""}
+        ${n.noi_dung && n.noi_dung.nhan_xet ? `<div class="small">💬 ${esc(n.noi_dung.nhan_xet)}</div>` : ""}</div>`).join("")}` : ""}
+  </div>`;
+}
 function sNhanXet() {
   nxCss();
+  let th = null;
   return sDashPage("nhanxet", (d, main) => {
     const ds = d.nhan_xet_tuan || [];
-    main.innerHTML = `<h1 style="margin-top:0">📝 Nhận xét theo tuần</h1>
+    th = th || d.thang_nay;
+    main.innerHTML = `<h1 style="margin-top:0">📝 Nhận xét</h1>
+      <div class="section-title">Báo cáo tháng</div>
+      <div class="filters"><input class="input" type="month" data-ch="bcThang" value="${esc(th)}" aria-label="Tháng"></div><div id="bcKhung">${spinner()}</div>
+      <div class="section-title" style="margin-top:14px">Nhận xét theo tuần</div>
       ${ds.length ? ds.map((n) => nxTheHtml(n)).join("") : '<div class="empty">Chưa có nhận xét tuần nào. Cô sẽ gửi nhận xét sau mỗi tuần học.</div>'}`;
+    const veBc = async () => {
+      const k = document.getElementById("bcKhung");
+      try { k.innerHTML = bcTheHtml(await api("my_bao_cao_thang", { p_thang: th })); } catch (e) { k.innerHTML = errBox(e); }
+    };
+    ACT["ch:bcThang"] = (el) => { if (el.value) { th = el.value; veBc(); } };
+    veBc();
   });
 }
 
