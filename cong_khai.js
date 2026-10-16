@@ -78,7 +78,7 @@ const CO_SO = {
 const CONG_NGHE = [
   { icon: "laptop", tieu_de: "Bài tập về nhà online", chu: "Cô giao bài, em làm trên điện thoại, có kết quả ngay.", sap_co: false },
   { icon: "zap", tieu_de: "Chấm điểm tự động", chu: "Phiếu trả lời được chấm bằng phần mềm, nhanh và chính xác.", sap_co: false },
-  { icon: "msg", tieu_de: "Nhận xét theo tuần", chu: "Gửi riêng từng phụ huynh.", sap_co: true },
+  { icon: "msg", tieu_de: "Nhận xét theo tuần", chu: "Gửi riêng từng phụ huynh, xem lại trên điện thoại.", sap_co: false },
   { icon: "db", tieu_de: "Dữ liệu học tập riêng", chu: "Hồ sơ điểm, tiến bộ, điểm danh, học phí của từng em ở một nơi.", sap_co: false },
 ];
 

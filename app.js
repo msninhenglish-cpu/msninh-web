@@ -202,6 +202,9 @@ async function route() {
         case "dang-ky": return tDangKy();
         case "sua-web": return moSuaWeb();
         case "buoi-hoc": return moBuoiHoc(query);
+        case "hoc-sinh": return moHocSinh(() => tHocSinh(query));
+        case "hs": return moHocSinh(() => tHoSo(+p[2]));
+        case "nhan-xet": return moHocSinh(() => tNhanXet(query));
         case "account": return tAccount();
         default: return go("#/t");
       }
@@ -217,6 +220,7 @@ async function route() {
       case "tien-bo": return sTienBo();
       case "diem-danh": return sDiemDanh();
       case "hoc-phi": return sHocPhi();
+      case "nhan-xet": return sNhanXet();
       case "account": return sAccount();
       default: return go("#/");
     }
@@ -251,17 +255,27 @@ function backBtn(href) { return `<a href="${href}" class="btn btn-sm" style="mar
 function sShell(tab, inner, opts) {
   opts = opts || {};
   const u = S.user || {};
-  const nav = [["home", "#/", "📝 Bài tập"], ["results", "#/results", "🏆 Kết quả"], ["tienbo", "#/tien-bo", "📈 Tiến bộ"], ["diemdanh", "#/diem-danh", "📅 Điểm danh"], ["hocphi", "#/hoc-phi", "💰 Học phí"], ["account", "#/account", "👤 Tài khoản"]];
+  const nav = [["home", "#/", "📝 Bài tập"], ["results", "#/results", "🏆 Kết quả"], ["tienbo", "#/tien-bo", "📈 Tiến bộ"], ["diemdanh", "#/diem-danh", "📅 Điểm danh"], ["hocphi", "#/hoc-phi", "💰 Học phí"], ["nhanxet", "#/nhan-xet", "📝 Nhận xét"], ["account", "#/account", "👤 Tài khoản"]];
   return `<div class="page">${topbar(opts.right)}
     <div class="whoami">👋 <b>${esc(u.name || "")}</b>${u.class_name ? " · " + (/^(lớp|khối)/i.test(u.class_name) ? "" : "lớp ") + esc(u.class_name) : ""} · mã <span class="code">${esc(u.code || "")}</span></div>
     <div class="tabs grid3">${nav.map((n) => `<a href="${n[1]}" class="${n[0] === tab ? "on" : ""}">${n[2]}</a>`).join("")}</div>
     ${opts.left || ""}<main>${inner}</main></div>`;
 }
 function tShell(tab, inner) {
-  const nav = [["home", "#/t", "▶️ Bài đã giao"], ["quizzes", "#/t/quizzes", "📚 Kho đề"], ["classes", "#/t/classes", "🏫 Lớp & học sinh"], ["buoihoc", "#/t/buoi-hoc", "📅 Buổi học"], ["hocphi", "#/t/hoc-phi", "💰 Học phí"], ["dangky", "#/t/dang-ky", "📩 Phiếu đăng ký"], ["suaweb", "#/t/sua-web", "✏️ Sửa website"], ["account", "#/t/account", "⚙️ Tài khoản"]];
+  const nav = [["home", "#/t", "▶️ Bài đã giao"], ["quizzes", "#/t/quizzes", "📚 Kho đề"], ["classes", "#/t/classes", "🏫 Lớp & học sinh"], ["hocsinh", "#/t/hoc-sinh", "👩‍🎓 Học sinh"], ["nhanxettuan", "#/t/nhan-xet", "📝 Nhận xét tuần"], ["buoihoc", "#/t/buoi-hoc", "📅 Buổi học"], ["hocphi", "#/t/hoc-phi", "💰 Học phí"], ["dangky", "#/t/dang-ky", "📩 Phiếu đăng ký"], ["suaweb", "#/t/sua-web", "✏️ Sửa website"], ["account", "#/t/account", "⚙️ Tài khoản"]];
   return `<div class="page wide">${topbar('<button class="btn btn-sm hide-sm" data-act="logout">Đăng xuất</button>')}
     <div class="tabs grid3">${nav.map((n) => `<a href="${n[1]}" class="${n[0] === tab ? "on" : ""}">${n[2]}</a>`).join("")}</div>
     <main>${inner}</main></div>`;
+}
+// Trang "Hoc sinh", "Ho so", "Nhan xet tuan" (GV) nam o hoc_sinh.js, chi tai khi giao vien mo
+function moHocSinh(chay) {
+  if (window.tHocSinh) return chay();
+  app.innerHTML = tShell("hocsinh", spinner());
+  const s = document.createElement("script");
+  s.src = "hoc_sinh.js?v=1";
+  s.onload = () => chay();
+  s.onerror = () => { app.querySelector("main").innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
+  document.head.appendChild(s);
 }
 // Trang "Buoi hoc" (doi soat diem danh) nam o buoi_hoc.js, chi tai khi giao vien mo
 function moBuoiHoc(query) {
@@ -808,6 +822,50 @@ function sTienBo() {
         ${loai.map((o) => `<div class="hbar"><span class="hl">${NGUON[o.k].icon} ${NGUON[o.k].nhan} <small class="muted">(${o.n} bài)</small></span>
           <div class="bar"><i style="width:${o.a * 10}%;background:${NGUON[o.k].mau}"></i></div><b>${fmtScore(Math.round(o.a * 10) / 10)}</b></div>`).join("")}</div>
       ${tot ? `<div class="card cheer">🌟 Bài tốt nhất: <b>${esc(tot.ten)}</b> — <b>${diemHien(tot)}</b> điểm (${ngayVN(tot.ngay)})</div>` : ""}`}`;
+  });
+}
+
+/* ---- Phieu nhan xet tuan (dung chung: HS xem, GV xem lich su / ho so). Du lieu do webcam gui, moi truong co the thieu ---- */
+function nxNgay(d) { return d ? String(d).slice(8, 10) + "/" + String(d).slice(5, 7) : ""; }
+function nxTheHtml(n, tieuDe) {
+  const d = n.noi_dung || {}, tk = d.thong_ke || {}, di = d.diem || {};
+  const ds = (a) => (Array.isArray(a) ? a.filter((x) => x !== null && x !== undefined && String(x).trim() !== "") : []);
+  const so = (v) => (v === null || v === undefined || v === "" ? "—" : esc(v));
+  const kq = ds(d.ket_qua);
+  return `<div class="card nx">
+    <div class="row between" style="gap:8px;flex-wrap:wrap"><h3 style="margin:0">${tieuDe ? esc(tieuDe) + " · " : ""}Tuần ${nxNgay(n.tuan_tu)} – ${nxNgay(n.tuan_den)}/${String(n.tuan_den || "").slice(0, 4)}</h3>
+      <span>${d.thai_do === "tot" ? '<span class="badge hw">😊 Thái độ tốt</span>' : d.thai_do === "can_co_gang" ? '<span class="badge gold">💪 Cần cố gắng</span>' : ""}${n.cong_khai === false ? ' <span class="badge">Nháp (HS chưa thấy)</span>' : ""}</span></div>
+    ${Object.keys(tk).length ? `<div class="nx-so">
+      ${tk.tong_buoi !== undefined ? `<div><b>${so(tk.co_mat)}/${so(tk.tong_buoi)}</b><span>buổi có mặt</span></div>` : ""}
+      ${tk.online_giao !== undefined ? `<div><b>${so(tk.online_giao - (tk.chua_lam || 0))}/${so(tk.online_giao)}</b><span>bài online đã làm</span></div>` : ""}
+      ${tk.tren_lop !== undefined ? `<div><b>${so(tk.tren_lop)}</b><span>bài trên lớp</span></div>` : ""}
+      ${di.chuyen_can !== undefined ? `<div><b>${so(di.chuyen_can)}</b><span>điểm chuyên cần</span></div>` : ""}
+      ${di.bt_online !== undefined ? `<div><b>${so(di.bt_online)}</b><span>điểm BT online</span></div>` : ""}
+      ${di.thai_do !== undefined ? `<div><b>${so(di.thai_do)}</b><span>điểm thái độ</span></div>` : ""}</div>` : ""}
+    ${kq.length ? `<div class="section-title" style="margin-top:10px">Kết quả trong tuần</div>${kq.map((k) => `<div class="nx-kq"><div class="row between"><span><b>${esc(k.ten || "")}</b>${k.chuyen_de ? ` <span class="small muted">· ${esc(k.chuyen_de)}</span>` : ""}</span>
+        <b class="score ${scoreCls(k.diem)}">${k.diem === null || k.diem === undefined ? "—" : fmtScore(k.diem)}</b></div>
+        ${k.tong ? `<div class="small muted">Đúng ${so(k.dung)}/${so(k.tong)}${ds(k.phan).length ? " · " + ds(k.phan).map((x) => `${esc(x.ten || "")} ${so(x.dung)}/${so(x.tong)}`).join(" · ") : ""}</div>` : ""}</div>`).join("")}` : ""}
+    ${ds(d.kien_thuc).length ? `<div class="section-title" style="margin-top:10px">Kiến thức đã học</div><ul class="nx-ds">${ds(d.kien_thuc).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+    ${ds(d.bai_tap).length ? `<div class="section-title" style="margin-top:10px">Bài tập về nhà</div><ul class="nx-ds">${ds(d.bai_tap).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+    ${ds(d.gop_y_thai_do).length ? `<div class="section-title" style="margin-top:10px">Góp ý thái độ</div><ul class="nx-ds">${ds(d.gop_y_thai_do).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : ""}
+    ${d.nhan_xet ? `<div class="explain" style="margin-top:10px">💬 <b>Cô nhắc nhở:</b> ${esc(d.nhan_xet).replace(/\n/g, "<br>")}</div>` : ""}
+  </div>`;
+}
+function nxCss() {
+  if (document.getElementById("nxCss")) return;
+  const st = document.createElement("style");
+  st.id = "nxCss";
+  st.textContent = `.nx-so { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 8px; margin-top: 10px; }
+    .nx-so div { background: #f4f7ff; border-radius: 12px; padding: 8px; text-align: center; } .nx-so b { display: block; font-size: 20px; color: var(--pri-d); } .nx-so span { font-size: 12.5px; color: var(--muted); }
+    .nx-kq { padding: 6px 0; border-bottom: 1px solid #eef1f8; } .nx-ds { margin: 4px 0 0; padding-left: 20px; }`;
+  document.head.appendChild(st);
+}
+function sNhanXet() {
+  nxCss();
+  return sDashPage("nhanxet", (d, main) => {
+    const ds = d.nhan_xet_tuan || [];
+    main.innerHTML = `<h1 style="margin-top:0">📝 Nhận xét theo tuần</h1>
+      ${ds.length ? ds.map((n) => nxTheHtml(n)).join("") : '<div class="empty">Chưa có nhận xét tuần nào. Cô sẽ gửi nhận xét sau mỗi tuần học.</div>'}`;
   });
 }
 
