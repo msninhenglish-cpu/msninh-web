@@ -201,6 +201,7 @@ async function route() {
         case "hoc-phi": return tHocPhi(query);
         case "dang-ky": return tDangKy();
         case "sua-web": return moSuaWeb();
+        case "buoi-hoc": return moBuoiHoc(query);
         case "account": return tAccount();
         default: return go("#/t");
       }
@@ -257,10 +258,20 @@ function sShell(tab, inner, opts) {
     ${opts.left || ""}<main>${inner}</main></div>`;
 }
 function tShell(tab, inner) {
-  const nav = [["home", "#/t", "▶️ Bài đã giao"], ["quizzes", "#/t/quizzes", "📚 Kho đề"], ["classes", "#/t/classes", "🏫 Lớp & học sinh"], ["hocphi", "#/t/hoc-phi", "💰 Học phí"], ["dangky", "#/t/dang-ky", "📩 Phiếu đăng ký"], ["suaweb", "#/t/sua-web", "✏️ Sửa website"], ["account", "#/t/account", "⚙️ Tài khoản"]];
+  const nav = [["home", "#/t", "▶️ Bài đã giao"], ["quizzes", "#/t/quizzes", "📚 Kho đề"], ["classes", "#/t/classes", "🏫 Lớp & học sinh"], ["buoihoc", "#/t/buoi-hoc", "📅 Buổi học"], ["hocphi", "#/t/hoc-phi", "💰 Học phí"], ["dangky", "#/t/dang-ky", "📩 Phiếu đăng ký"], ["suaweb", "#/t/sua-web", "✏️ Sửa website"], ["account", "#/t/account", "⚙️ Tài khoản"]];
   return `<div class="page wide">${topbar('<button class="btn btn-sm hide-sm" data-act="logout">Đăng xuất</button>')}
     <div class="tabs grid3">${nav.map((n) => `<a href="${n[1]}" class="${n[0] === tab ? "on" : ""}">${n[2]}</a>`).join("")}</div>
     <main>${inner}</main></div>`;
+}
+// Trang "Buoi hoc" (doi soat diem danh) nam o buoi_hoc.js, chi tai khi giao vien mo
+function moBuoiHoc(query) {
+  if (window.tBuoiHoc) return tBuoiHoc(query);
+  app.innerHTML = tShell("buoihoc", spinner());
+  const s = document.createElement("script");
+  s.src = "buoi_hoc.js?v=1";
+  s.onload = () => tBuoiHoc(query);
+  s.onerror = () => { app.querySelector("main").innerHTML = errBox("Không tải được trang Buổi học. Kiểm tra mạng rồi thử lại."); };
+  document.head.appendChild(s);
 }
 // Cong cu "Sua website" nam o sua_web.js, chi tai khi giao vien mo
 function moSuaWeb() {
@@ -1603,15 +1614,26 @@ async function tHocPhi(query) {
         ${d.rows.map((r) => `<tr class="${r.da_dong ? "row-ok" : ""}">
           <td><label class="tick"><input type="checkbox" data-ch="dong" data-u="${r.user_id}" ${r.da_dong ? "checked" : ""} aria-label="Đã đóng học phí ${esc(r.ho_ten)}"><span></span></label></td>
           <td>${esc(r.ma_hs)}</td><td class="wrap">${esc(r.ho_ten)}</td><td>${esc(r.lop || "")}</td>
-          <td>${r.so_buoi ?? '<span class="faint">—</span>'}</td><td>${r.don_gia === null ? '<span class="faint">—</span>' : tien(r.don_gia)}</td>
+          <td>${r.so_buoi ?? '<span class="faint">—</span>'}${r.so_buoi_nguon === "may_gui" ? ' <span class="faint small" title="Tháng này chưa có điểm danh, dùng số buổi máy gửi">(máy gửi)</span>' : ""}</td>
+          <td><button class="btn btn-sm btn-ghost" data-act="hpGia" data-u="${r.user_id}" data-n="${esc(r.ho_ten)}" data-g="${r.don_gia_rieng ? r.don_gia : ""}" title="Sửa đơn giá riêng em này">${r.don_gia === null ? "—" : tien(r.don_gia)}${r.don_gia_rieng ? " ✱" : ""}</button></td>
           <td><b>${r.thanh_tien === null ? '<span class="faint">—</span>' : tien(r.thanh_tien)}</b></td>
           <td class="small" id="nd${r.user_id}">${r.ngay_dong ? ngayVN(r.ngay_dong) : ""}</td></tr>`).join("")}
       </tbody></table></div>` : `<div class="empty">${st.chua ? "🎉 Tất cả đã đóng học phí." : "Không có học sinh."}</div>`}
-      <p class="small muted">Số buổi và đơn giá do phần mềm điểm danh (webcam) gửi lên. Cô chỉ cần tích ô «Đã đóng» — bấm là lưu ngay.</p>`;
+      <p class="small muted">Số buổi = số ngày có mặt trong tháng, tự tính từ điểm danh (đối soát ở mục <a href="#/t/buoi-hoc?thang=${esc(st.thang)}${st.cls ? "&lop=" + esc(st.cls) : ""}">📅 Buổi học</a>). Đơn giá theo khối đặt ở mục Buổi học; bấm vào đơn giá một em để đặt giá riêng (✱). Tích ô «Đã đóng» là lưu ngay.</p>`;
   };
   ACT["ch:thang"] = (el) => { if (el.value) { st.thang = el.value; ve(); } };
   ACT["ch:lop"] = (el) => { st.cls = el.value; ve(); };
   ACT["ch:chua"] = (el) => { st.chua = el.checked; ve(); };
+  ACT.hpGia = (b) => {
+    const v = prompt(`Đơn giá riêng 1 buổi của ${b.dataset.n} (tháng ${st.thang}).
+Để trống = dùng giá theo khối.`, b.dataset.g);
+    if (v === null) return;
+    const so = v.replace(/[^0-9]/g, "");
+    busy(b, async () => {
+      try { await api("t_dat_don_gia_hs", { p_user_id: Number(b.dataset.u), p_thang: st.thang, p_don_gia: so === "" ? null : Number(so) }); toast("Đã lưu đơn giá"); ve(); }
+      catch (e) { toast(e.message, 4500); }
+    });
+  };
   ACT["ch:dong"] = async (el) => {
     const want = el.checked;
     el.disabled = true;
