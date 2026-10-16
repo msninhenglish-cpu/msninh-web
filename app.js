@@ -945,6 +945,7 @@ async function tAssignForm(id, quizId) {
       ${id ? "" : `<div class="field"><label class="f">Đề</label><select class="input" name="quiz" data-ch="quiz">
         ${ov.quizzes.map((q) => `<option value="${q.id}" ${String(q.id) === String(quizId) ? "selected" : ""}>${esc(q.title)} (${q.n_questions} câu)</option>`).join("")}</select></div>`}
       <div class="field"><label class="f">Tên bài (học sinh sẽ thấy)</label><input class="input" name="title" value="${esc(a ? a.title : "")}" placeholder="Để trống = dùng tên đề"></div>
+      <div class="field"><label class="f">Chuyên đề (không bắt buộc)</label><input class="input" name="cd" maxlength="120" value="${esc(a && a.chuyen_de ? a.chuyen_de : "")}" placeholder="Ví dụ: Thì hiện tại hoàn thành; Unit 3 – Từ vựng"><div class="small muted">Hiện trên phiếu nhận xét tuần gửi phụ huynh.</div></div>
       ${id ? "" : `<div class="field"><label class="f">Hình thức</label><div class="seg">
         <label><input type="radio" name="mode" value="homework" data-ch="mode" checked>Bài tập về nhà</label>
         <label><input type="radio" name="mode" value="exam" data-ch="mode">Kiểm tra</label></div></div>`}
@@ -971,6 +972,7 @@ async function tAssignForm(id, quizId) {
   ACT.save = (form) => busy(form.querySelector(".savebar button"), async () => {
     const p = {
       title: form.title.value,
+      chuyen_de: form.cd.value.trim(),
       class_ids: [...form.querySelectorAll("input[name=cls]:checked")].map((x) => Number(x.value)),
       open_at: fromLocalInput(form.open.value),
       due_at: fromLocalInput(form.due.value),
