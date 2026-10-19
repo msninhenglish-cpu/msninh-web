@@ -610,3 +610,11 @@ table.t tr.row-ok td { background: #f2fbf6; }
   .pub-brand-t b { font-size: clamp(13px, calc(11vw - 22px), 28px); letter-spacing: 0; }
   .pub-brand-t small { display: none; }
 }
+
+/* dang nhap: chon kieu (19/10/2026) */
+.seg { display: flex; background: #eef1f8; border-radius: 12px; padding: 4px; gap: 4px; }
+.seg-b { flex: 1; border: 0; background: transparent; padding: 9px 6px; border-radius: 9px; font: inherit; font-weight: 700; color: #5b6475; cursor: pointer; }
+.seg-b.on { background: #fff; color: #3b5bdb; box-shadow: 0 1px 4px rgba(30, 40, 90, .12); }
+/* xem lai cau sai */
+.explain b.sai { color: #c92a2a; } .explain b.dung { color: #2b8a3e; }
+.explain-mo { margin-top: 8px; } .explain-mo summary { cursor: pointer; color: #3b5bdb; font-weight: 700; font-size: 15px; }

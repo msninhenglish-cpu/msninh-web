@@ -319,14 +319,21 @@ function viewLanding() { pubHome(); }
 
 /* ================= dang nhap ================= */
 function viewLogin() {
+  if (S.dnTen === undefined) { try { S.dnTen = localStorage.getItem("kt_dn_ten") === "1"; } catch (e) { S.dnTen = false; } }
   const notSet = !CFG.SUPABASE_URL || CFG.SUPABASE_URL.includes("XXXX");
   app.innerHTML = `<div class="center-screen"><div class="login-box">
     <form class="card" data-submit="login">
       ${brandBig("Đăng nhập để làm bài")}
       ${notSet ? '<div class="alert alert-warn">Trang web chưa được kết nối máy chủ (chưa điền <b>config.js</b>).</div>' : ""}
       <div id="err">${S.flash ? `<div class="alert alert-warn">${esc(S.flash)}</div>` : ""}</div>
-      <div class="field"><label class="f" for="code">Mã học sinh</label>
-        <input class="input" id="code" name="code" placeholder="Ví dụ: 057" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required></div>
+      <div class="seg" role="tablist" style="margin-bottom:12px"><button type="button" class="seg-b ${S.dnTen ? "" : "on"}" data-act="dnKieu" data-k="ma">🔢 Bằng mã số</button><button type="button" class="seg-b ${S.dnTen ? "on" : ""}" data-act="dnKieu" data-k="ten">🙋 Bằng họ tên</button></div>
+      ${S.dnTen ? `<div class="field"><label class="f" for="lop">Lớp của em</label>
+        <select class="input" id="lop" name="lop" required><option value="">Đang tải danh sách lớp…</option></select></div>
+      <div class="field"><label class="f" for="ten">Họ và tên đầy đủ</label>
+        <input class="input" id="ten" name="ten" placeholder="Ví dụ: Nguyễn Thị Lan" autocomplete="name" maxlength="80" required>
+        <div class="small muted" style="margin-top:6px">Gõ có dấu hay không dấu đều được.</div></div>`
+      : `<div class="field"><label class="f" for="code">Mã học sinh</label>
+        <input class="input" id="code" name="code" placeholder="Ví dụ: 057" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required></div>`}
       <div class="field"><label class="f" for="pw">Mật khẩu</label>
         <div class="pwrow"><input class="input" id="pw" name="pw" type="password" placeholder="Mật khẩu của em" autocomplete="current-password" required>
         <button type="button" class="btn" data-act="eye" title="Hiện / ẩn mật khẩu">👁</button></div>
@@ -337,9 +344,21 @@ function viewLogin() {
   </div></div>`;
   S.flash = null;
   ACT.eye = () => { const pw = document.getElementById("pw"); pw.type = pw.type === "password" ? "text" : "password"; };
+  ACT.dnKieu = (b) => { S.dnTen = b.dataset.k === "ten"; try { localStorage.setItem("kt_dn_ten", S.dnTen ? "1" : ""); } catch (e) { /* bo */ } viewLogin(); };
+  if (S.dnTen) {
+    api("public_ds_lop", {}, false).then((ds) => {
+      const sel = document.getElementById("lop"); if (!sel) return;
+      let nho = ""; try { nho = localStorage.getItem("kt_dn_lop") || ""; } catch (e) { /* bo */ }
+      sel.innerHTML = '<option value="">— Chọn lớp —</option>' + ds.map((c) => `<option value="${c.id}" ${String(c.id) === nho ? "selected" : ""}>${esc(c.name)}</option>`).join("");
+    }, (e) => { document.getElementById("err").innerHTML = errBox(e); });
+  }
   ACT.login = (f) => busy(document.getElementById("loginBtn"), async () => {
     try {
-      const r = await api("login", { p_code: f.code.value, p_password: f.pw.value }, false);
+      let r;
+      if (S.dnTen) {
+        try { localStorage.setItem("kt_dn_lop", f.lop.value); } catch (e) { /* bo */ }
+        r = await api("login_ten", { p_lop_id: Number(f.lop.value), p_ho_ten: f.ten.value, p_password: f.pw.value }, false);
+      } else r = await api("login", { p_code: f.code.value, p_password: f.pw.value }, false);
       setSession(r.token, r.user);
       go(r.user.role === "teacher" ? "#/t" : r.user.default_password ? "#/doi-mk" : "#/");
     } catch (e) { document.getElementById("err").innerHTML = errBox(e); }
@@ -702,7 +721,10 @@ function reviewHtml(d, onlyWrong) {
       ${q.instruction ? `<div class="q-instr">${fmt(q.instruction)}</div>` : ""}
       <div class="q-text" style="font-size:17px">${fmt(q.question)}</div>
       <div class="review-opts">${q.options.map((o, j) => `<div class="opt static ${o.k === q.correct ? "right" : o.k === q.chosen ? "wrong" : ""}"><span class="L">${LETTERS[j]}</span><span>${fmt(o.t)}${o.k === q.chosen ? " <i class='small'>(đã chọn)</i>" : ""}</span></div>`).join("")}</div>
-      ${q.explanation ? `<div class="explain">💡 ${fmt(q.explanation)}</div>` : ""}</div>`;
+      ${ok ? (q.explanation ? `<details class="explain-mo"><summary>💡 Giải thích</summary><div class="explain">${fmt(q.explanation)}</div></details>` : "")
+        : `<div class="explain"><div class="small" style="margin-bottom:4px">${q.chosen === null || q.chosen === undefined ? "Em <b>bỏ trống</b> câu này" : `Em chọn: <b class="sai">${LETTERS[q.options.findIndex((o) => o.k === q.chosen)]}. ${fmt(q.options.find((o) => o.k === q.chosen).t)}</b>`}
+          · Đáp án đúng: <b class="dung">${LETTERS[q.options.findIndex((o) => o.k === q.correct)]}. ${fmt(q.options.find((o) => o.k === q.correct).t)}</b></div>
+          ${q.explanation ? `<b>💡 Giải thích</b><div>${fmt(q.explanation)}</div>` : '<span class="small muted">Cô chưa thêm giải thích cho câu này.</span>'}</div>`}</div>`;
   }).join("");
 }
 async function sReview(id) {
@@ -1239,10 +1261,10 @@ async function tQuizzes() {
   app.querySelector("main").innerHTML = `<div class="row between" style="margin-bottom:12px"><h1 style="margin:0">Kho đề</h1><a class="btn btn-primary" href="#/t/q/new">+ Soạn đề mới</a></div>
     ${baiThuHtml(ov.quizzes, bt)}
     ${ov.quizzes.map((q) => `<div class="card row between">
-      <div class="grow"><b>${esc(q.title)}</b><div class="small muted">${q.n_questions} câu · sửa lần cuối ${fmtDT(q.updated_at)}</div></div>
+      <div class="grow"><b>${esc(q.title)}</b>${q.nguon === "may_cham" ? ` <span class="badge" title="Đăng từ phần mềm chấm điểm">📥 Mã đề ${esc(q.ma_de)}</span>` : ""}<div class="small muted">${q.n_questions} câu${q.chuyen_de ? " · " + esc(q.chuyen_de) : ""} · 💡 ${q.n_giai_thich}/${q.n_questions} câu có giải thích · sửa lần cuối ${fmtDT(q.updated_at)}</div></div>
       <div class="row"><a class="btn btn-sm" href="#/t/q/${q.id}">Sửa</a><a class="btn btn-sm btn-primary" href="#/t/new?quiz=${q.id}">Giao bài</a>
       <button class="btn btn-sm btn-danger" data-act="del" data-id="${q.id}" data-t="${esc(q.title)}">Xoá</button></div></div>`).join("") || '<div class="empty">Chưa có đề nào.</div>'}
-    <p class="small muted">Sửa đề không ảnh hưởng tới các bài đã giao trước đó (mỗi bài giao giữ bản sao của đề lúc giao).</p>`;
+    <p class="small muted">Sửa đề không ảnh hưởng tới các bài đã giao trước đó (mỗi bài giao giữ bản sao của đề lúc giao) — riêng <b>giải thích</b> được cập nhật luôn cho bài đã giao. Đề «📥 Mã đề» đăng từ phần mềm chấm điểm: đăng lại từ phần mềm sẽ ghi đè phần sửa trên web.</p>`;
   ACT.luuThu = (btn) => {
     const k = btn.dataset.khoi, sel = app.querySelector(`[data-thu-de="${k}"]`), sc = app.querySelector(`[data-thu-so="${k}"]`);
     busy(btn, async () => {
@@ -1502,7 +1524,7 @@ D. playing
       return;
     }
     try {
-      const qs = E.qs.map((q) => ({ question: q.question.trim(), options: q.options.map((o) => String(o).trim()), correct: q.correct, explanation: (q.explanation || "").trim(), instruction: (q.instruction || "").trim() }));
+      const qs = E.qs.map((q) => ({ stt: q.stt, question: q.question.trim(), options: q.options.map((o) => String(o).trim()), correct: q.correct, explanation: (q.explanation || "").trim(), instruction: (q.instruction || "").trim() }));
       const r = await api("t_save_quiz", { p_id: E.id, p_title: E.title, p_questions: qs });
       E.id = r.id; E.dirty = false;
       msg.innerHTML = "";
