@@ -1697,6 +1697,14 @@ function tAccount() {
       veKhoaMay();
     } catch (e) { toast(e.message, 4000); }
   });
+  ACT["ch:khoaSaoLuu"] = async (el) => {
+    const bat = el.checked;
+    if (bat && !confirm(`Cho phép khoá «${el.dataset.t}» tải TOÀN BỘ dữ liệu (tên, điểm, học phí, SĐT phụ huynh, mật khẩu đã mã hoá) để sao lưu?
+Chỉ bật cho phần mềm trên máy của cô (vd webcam sao lưu mỗi ngày). Mỗi lần sao lưu đều được ghi lại.`)) { el.checked = false; return; }
+    el.disabled = true;
+    try { await api("t_dat_quyen_sao_luu", { p_id: Number(el.dataset.id), p_bat: bat }); toast(bat ? "Đã cho phép sao lưu" : "Đã tắt quyền sao lưu"); veKhoaMay(); }
+    catch (e) { el.checked = !bat; toast(e.message, 4000); } finally { el.disabled = false; }
+  };
   ACT["ch:khoaSdt"] = async (el) => {
     const bat = el.checked;
     if (bat && !confirm(`Cho phép khoá «${el.dataset.t}» đọc SĐT phụ huynh?\nChỉ bật cho phần mềm trên máy của cô (vd phần mềm điểm danh gửi Zalo). Mỗi lần đọc đều được ghi lại.`)) { el.checked = false; return; }
@@ -1813,7 +1821,9 @@ async function veKhoaMay() {
   box.innerHTML = ds.length ? ds.map((k) => `<div class="dd-row">
       <span><b>${esc(k.ten)}</b><br><span class="small muted"><span class="code">${esc(k.key_prefix)}…</span> · tạo ${ngayVN(k.created_at)}${k.last_used_at ? " · dùng lần cuối " + fmtDT(k.last_used_at) : " · chưa dùng"}</span></span>
       ${k.revoked_at ? "" : `<br><label class="check small" style="margin-top:4px"><input type="checkbox" data-ch="khoaSdt" data-id="${k.id}" data-t="${esc(k.ten)}" ${k.doc_sdt ? "checked" : ""}> 📞 Cho phép đọc SĐT phụ huynh</label>
-        ${Number(k.doc_sdt_lan) ? `<span class="small muted"> · đã đọc ${k.doc_sdt_lan} lần, gần nhất ${fmtDT(k.doc_sdt_luc)}</span>` : ""}`}</span>
+        ${Number(k.doc_sdt_lan) ? `<span class="small muted"> · đã đọc ${k.doc_sdt_lan} lần, gần nhất ${fmtDT(k.doc_sdt_luc)}</span>` : ""}
+        <br><label class="check small" style="margin-top:4px"><input type="checkbox" data-ch="khoaSaoLuu" data-id="${k.id}" data-t="${esc(k.ten)}" ${k.sao_luu ? "checked" : ""}> 💾 Cho phép sao lưu toàn bộ dữ liệu</label>
+        ${Number(k.sao_luu_lan) ? `<span class="small muted"> · đã sao lưu ${k.sao_luu_lan} lần, gần nhất ${fmtDT(k.sao_luu_luc)}</span>` : ""}`}</span>
       ${k.revoked_at ? '<span class="badge">Đã thu hồi</span>' : `<button class="btn btn-sm btn-danger" data-act="thuhoi" data-id="${k.id}" data-t="${esc(k.ten)}">Thu hồi</button>`}</div>`).join("")
     : '<p class="muted small">Chưa có khoá nào.</p>';
 }
