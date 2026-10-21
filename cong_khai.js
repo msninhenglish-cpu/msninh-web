@@ -156,7 +156,7 @@ const THANH_TICH_KHOI = [
     anh: [{ nho: "anh/khen_thuong_thcs_800.webp", lon: "anh/khen_thuong_thcs_1600.webp", alt: "Học sinh khối 9 nhận thưởng thành tích cao kỳ tuyển sinh vào 10 năm học 2026–2027" }] },
   { tieu_de: "Thi vào 10 năm 2025: 2 em điểm 9, nhiều em điểm 8",
     mo_ta: "Hai học sinh đạt điểm 9 Tiếng Anh thi vào 10 năm 2025; nhiều em khác đạt điểm 8.",
-    anh: [{ nho: "anh/tt_diem9_vao10_2025_480.webp", lon: "anh/tt_diem9_vao10_2025_800.webp", alt: "Hai học sinh đạt điểm 9 Tiếng Anh thi vào 10 năm 2025 cùng cô Ninh" },
+    anh: [{ nho: "anh/tt_diem9_vao10_2025_480.webp", lon: "anh/tt_diem9_vao10_2025_800.webp", alt: "Hai học sinh đạt điểm 9 Tiếng Anh thi vào 10 năm 2025 cùng Ms Ninh" },
           { nho: "anh/tt_diem8_vao10_2025_480.webp", lon: "anh/tt_diem8_vao10_2025_800.webp", alt: "Học sinh đạt điểm 8 Tiếng Anh thi vào 10 năm 2025" }] },
   { tieu_de: "Điểm thi học kỳ II – Khối 6, năm học 2025–2026",
     mo_ta: "Khen thưởng học sinh đạt điểm tốt các khối 6, 7, 8, 9 năm học 2025–2026.",
