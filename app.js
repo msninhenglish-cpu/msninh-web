@@ -551,14 +551,16 @@ async function sStart(aid) {
   if (a.time_limit_min) rules += `<li>Thời gian: <b>${a.time_limit_min} phút</b>, tính từ lúc bấm bắt đầu. Hết giờ bài <b>tự nộp</b>.</li>`;
   if (a.due_at) rules += `<li>Hạn nộp: <b>${fmtDT(a.due_at)}</b> (${remainText(a.due_at)}).</li>`;
   rules += `<li>Số lần làm: <b>${a.max_attempts ? a.max_attempts + " lần" : "không giới hạn"}</b>${a.used ? ` (đã làm ${a.used})` : ""}${a.mode === "homework" && a.max_attempts !== 1 ? ", lấy điểm cao nhất" : ""}.</li>`;
+  if (a.on_tung_cau && a.max_attempts !== 1) rules += "<li><b>Làm lại = ôn từng câu</b>: chọn xong biết ngay đúng / sai, sai thì chọn lại đến khi đúng. Điểm lần làm lại tính theo <b>lần chọn đầu</b> của mỗi câu.</li>";
+  if (a.show_answers === "after_due") rules += "<li>Nộp xong em xem được <b>các câu làm đúng</b> kèm giải thích; đáp án đầy đủ cô mở sau hạn nộp.</li>";
   rules += "<li>Bài làm được lưu liên tục. Nếu mất mạng hay tắt máy, em vào lại sẽ làm tiếp được.</li>";
   if (a.mode === "exam") rules += "<li><b>Không thoát ra khỏi trang</b> khi đang làm. Mỗi lần thoát ra, cô sẽ thấy.</li>";
   let btn;
   if (a.doing_id) btn = '<button class="btn btn-gold btn-block btn-lg" data-act="go">Làm tiếp bài đang dở</button>';
-  else if (canStart) btn = `<button class="btn btn-primary btn-block btn-lg" data-act="go">${a.used ? "Làm lại" : "Bắt đầu làm bài"}</button>`;
+  else if (canStart) btn = `<button class="btn btn-primary btn-block btn-lg" data-act="go">${a.used ? (a.on_tung_cau ? "🔁 Làm lại — ôn từng câu" : "Làm lại") : "Bắt đầu làm bài"}</button>`;
   else btn = `<div class="alert alert-warn">${a.closed ? "Bài đã hết hạn nộp." : "Em đã dùng hết số lần làm bài này."}</div>`;
   const pastHtml = past.length ? '<div class="section-title">Các lần đã làm</div>' + past.map((r, i) => `
-    <div class="card tap row between" data-act="rv" data-id="${r.id}" data-ok="${r.can_review ? 1 : 0}">
+    <div class="card tap row between" data-act="rv" data-id="${r.id}" data-ok="${r.can_review || r.xem_mot_phan ? 1 : 0}">
       <div><b>Lần ${past.length - i}</b><div class="small muted">${fmtDT(r.submitted_at)} · đúng ${r.correct_count}/${r.total}</div></div>
       <span class="score ${scoreCls(r.score)}">${fmtScore(r.score)}</span></div>`).join("") : "";
   app.innerHTML = sShell("home", `
@@ -694,7 +696,9 @@ async function sQuiz(aid) {
     deadline: d.deadline_at ? Date.parse(d.deadline_at) : null,
     offset: Date.parse(d.server_now) - Date.now(),
     dirty: !!useLocal, submitting: false, done: false, am_thanh: d.am_thanh || [], nkey: "kt_nghe_" + d.attempt_id,
+    on: d.kieu === "on" ? { lan: d.on_lan || {}, xong: d.on_xong || {}, gt: d.on_giai_thich || {}, sai: {}, dung: {}, fb: null } : null,
   };
+  if (Q.on) { Q.answers = {}; const i = Q.qs.findIndex((x) => !Q.on.xong[x.qi]); Q.idx = i < 0 ? 0 : i; }
   const qz = Q;
   const tick = setInterval(() => quizTick(qz), 1000);
   const autosave = setInterval(() => quizSave(qz), 20000);
@@ -720,6 +724,7 @@ async function sQuiz(aid) {
     closeSheet();
   };
   ACT.pick = (el) => {
+    if (qz.on) return onChon(qz, Number(el.dataset.k));
     const q = qz.qs[qz.idx];
     qz.answers[q.qi] = Number(el.dataset.k);
     qz.dirty = true; quizLocal(qz);
@@ -737,7 +742,7 @@ async function sQuiz(aid) {
 }
 function quizLocal(qz) { LS.set(qz.key, { answers: qz.answers, leave: qz.leave, idx: qz.idx, t: Date.now() }); }
 function quizRemain(qz) { return qz.deadline ? qz.deadline - (Date.now() + qz.offset) : null; }
-function quizAnswered(qz) { return qz.qs.filter((q) => qz.answers[q.qi] !== undefined).length; }
+function quizAnswered(qz) { return qz.on ? qz.qs.filter((q) => qz.on.xong[q.qi]).length : qz.qs.filter((q) => qz.answers[q.qi] !== undefined).length; }
 function fmtClock(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
@@ -747,7 +752,40 @@ function quizShowTimer(qz) {
   const r = quizRemain(qz);
   return r !== null && (qz.mode === "exam" || r < 3600e3);
 }
+// Luot on: 1 cau / man, chon xong phan hoi ngay; sai thi chon lai toi khi dung (diem = lan chon dau, server giu)
+async function onChon(qz, k) {
+  const q = qz.qs[qz.idx], o = qz.on;
+  if (o.xong[q.qi] || o.dang || (o.sai[q.qi] || []).includes(k)) return;
+  o.dang = true;
+  try {
+    const r = await api("tra_loi_cau", { p_attempt_id: qz.id, p_qi: q.qi, p_k: k });
+    o.lan[q.qi] = r.lan;
+    if (r.dung) { o.xong[q.qi] = true; o.dung[q.qi] = k; o.gt[q.qi] = r.giai_thich; o.fb = null; }
+    else { (o.sai[q.qi] = o.sai[q.qi] || []).push(k); o.fb = { qi: q.qi, goi_y: r.goi_y, dap_an: r.dap_an, giai_thich: r.giai_thich }; }
+  } catch (e) {
+    if (/hết hạn/.test(e.message)) { o.dang = false; quizSubmit(qz, true); return; }
+    toast(e.message, 4000);
+  } finally { o.dang = false; }
+  quizDraw(qz);
+}
+function onPhanHoi(qz, q) {
+  const o = qz.on, n = qz.qs.length, conLai = qz.qs.filter((x) => !o.xong[x.qi]).length;
+  if (o.xong[q.qi]) {
+    const tiep = qz.qs.findIndex((x, i) => i > qz.idx && !o.xong[x.qi]), vong = qz.qs.findIndex((x) => !o.xong[x.qi]);
+    return `<div class="on-fb dung"><b>✅ Đúng rồi!</b>${o.lan[q.qi] > 1 ? ` <span class="small">(em chọn ${o.lan[q.qi]} lần)</span>` : ""}
+      ${o.gt[q.qi] ? `<div style="margin-top:6px">💡 ${fmt(o.gt[q.qi])}</div>` : ""}</div>
+      ${conLai ? `<button class="btn btn-primary btn-block btn-lg" data-act="onTiep" data-i="${tiep >= 0 ? tiep : vong}">Câu tiếp →</button>`
+        : `<div class="on-fb dung" style="text-align:center"><b>🎉 Em đã ôn xong cả ${n} câu!</b></div><button class="btn btn-gold btn-block btn-lg" data-act="doSubmit">Nộp bài ✔</button>`}`;
+  }
+  const fb = o.fb && o.fb.qi === q.qi ? o.fb : null;
+  if (!fb) return '<p class="small muted center" style="margin:8px 0 0">Chọn đáp án — em sẽ biết ngay đúng hay chưa.</p>';
+  const L = fb.dap_an != null ? q.options.findIndex((x) => x.k === fb.dap_an) : -1;
+  return `<div class="on-fb sai"><b>❌ Chưa đúng, em thử lại nhé.</b>
+    ${L >= 0 ? `<div style="margin-top:6px">Đáp án đúng: <b>${LETTERS[L]}. ${fmt(q.options[L].t)}</b> — em bấm chọn lại để qua câu.</div>${fb.giai_thich ? `<div style="margin-top:6px">💡 ${fmt(fb.giai_thich)}</div>` : ""}`
+      : fb.goi_y ? `<div style="margin-top:6px">💡 Gợi ý: ${fmt(fb.goi_y)}</div>` : ""}</div>`;
+}
 function quizDraw(qz) {
+  if (qz.on) return onDraw(qz);
   const q = qz.qs[qz.idx], n = qz.qs.length, last = qz.idx === n - 1;
   app.innerHTML = `<div class="page">
   <div class="sticky-top">
@@ -769,6 +807,37 @@ function quizDraw(qz) {
   </div>
   ${last ? "" : '<button class="btn btn-gold btn-block" data-act="askSubmit">Nộp bài ✔</button>'}
   </div>`;
+  quizCounters(qz);
+  quizTick(qz);
+  Object.keys(qz.au || {}).forEach((i) => ngheVe(qz, i));
+}
+function onDraw(qz) {
+  const q = qz.qs[qz.idx], n = qz.qs.length, o = qz.on, xong = o.xong[q.qi], sai = o.sai[q.qi] || [];
+  const fb = o.fb && o.fb.qi === q.qi ? o.fb : null;
+  app.innerHTML = `<div class="page">
+  <div class="sticky-top">
+    <div class="top"><span class="ttl">🔁 ${esc(qz.title)}</span>${quizShowTimer(qz) ? '<span class="timer" id="timer">⏱ --:--</span>' : ""}</div>
+    <div class="bar" style="margin-bottom:14px"><i id="prog"></i></div>
+  </div>
+  <div class="card">
+    <div class="muted small"><span class="badge gold" style="margin-right:6px">Ôn từng câu</span>Câu ${qz.idx + 1} / ${n} · <span id="cnt"></span></div>
+    ${q.instruction ? `<div class="q-instr" style="margin-top:10px">${fmt(q.instruction)}</div>` : ""}
+    ${ngheHtml(qz, q)}
+    <div class="q-text">${fmtDe(q.question)}</div>
+    <div class="opts">${q.options.map((x, i) => {
+      const cls = xong && o.dung[q.qi] === x.k ? "right" : sai.includes(x.k) ? "wrong" : fb && fb.dap_an === x.k ? "goi-y" : "";
+      return `<button class="opt ${cls}" data-act="pick" data-k="${x.k}" ${xong || sai.includes(x.k) ? "disabled" : ""}><span class="L">${LETTERS[i]}</span><span>${fmt(x.t)}</span></button>`;
+    }).join("")}</div>
+    ${onPhanHoi(qz, q)}
+    <div class="nav" style="margin-top:12px">
+      <button class="btn" data-act="prev" ${qz.idx === 0 ? "disabled" : ""}>← Câu trước</button>
+      <button class="btn" data-act="next" ${qz.idx === n - 1 ? "disabled" : ""}>Câu sau →</button>
+    </div>
+    <div class="dots">${qz.qs.map((x, i) => `<button class="${o.xong[x.qi] ? "done" : ""} ${i === qz.idx ? "cur" : ""}" data-act="jump" data-i="${i}">${i + 1}</button>`).join("")}</div>
+  </div>
+  <button class="btn btn-ghost btn-block" data-act="askSubmit">Nộp bài ✔</button>
+  </div>`;
+  ACT.onTiep = (b) => { qz.idx = Number(b.dataset.i); quizDraw(qz); window.scrollTo(0, 0); };
   quizCounters(qz);
   quizTick(qz);
   Object.keys(qz.au || {}).forEach((i) => ngheVe(qz, i));
@@ -854,14 +923,25 @@ function sResult() {
       <div class="muted">điểm</div>
       <p><b>Đúng ${r.correct}/${r.total} câu</b></p>
       <h2 style="margin-bottom:0">${msg}</h2></div>
-    ${r.can_review ? `<a class="btn btn-primary btn-block btn-lg" href="#/review/${r.attempt_id}">📖 Xem lại bài làm ➜</a>` : '<div class="alert alert-ok">Cô sẽ mở đáp án sau. Em xem lại ở mục <b>📊 Kết quả</b> nhé.</div>'}
-    ${r.can_retry ? `<a class="btn btn-block btn-lg" href="#/start/${r.assignment_id}" style="margin-top:12px">🔁 Làm lại</a>` : ""}
+    ${r.kieu === "on" ? '<p class="small muted center">Điểm lần ôn tính theo <b>lần chọn đầu</b> của mỗi câu.</p>' : ""}
+    ${r.can_review ? `<a class="btn btn-primary btn-block btn-lg" href="#/review/${r.attempt_id}">📖 Xem lại bài làm ➜</a>`
+      : r.xem_mot_phan ? `<a class="btn btn-primary btn-block btn-lg" href="#/review/${r.attempt_id}">📖 Xem các câu em làm đúng ➜</a>
+        <p class="small muted center" style="margin:6px 0 0">Đáp án đầy đủ cô mở sau hạn nộp${r.han ? " (" + fmtDT(r.han) + ")" : ""}.</p>`
+      : '<div class="alert alert-ok">Cô sẽ mở đáp án sau. Em xem lại ở mục <b>📊 Kết quả</b> nhé.</div>'}
+    ${r.can_retry ? `<a class="btn btn-block btn-lg" href="#/start/${r.assignment_id}" style="margin-top:12px">${r.on_tung_cau ? "🔁 Làm lại — ôn từng câu" : "🔁 Làm lại"}</a>` : ""}
     <a class="btn btn-ghost btn-block" href="#/" style="margin-top:12px">Về trang chủ</a>`);
 }
 
 function reviewHtml(d, onlyWrong) {
   if (d.am_thanh) ngheChuanBi(d, d.am_thanh, null);
   return d.questions.map((q, i) => {
+    if (q.dung === false && q.options === undefined) {  // truoc han: cau sai chi «chua dung», khong lo dap an
+      if (onlyWrong === "dung") return "";
+      return `<div class="card review wrong"><div class="row between" style="margin-bottom:6px"><b>Câu ${i + 1}</b><span class="badge exam">${q.trong ? "Bỏ trống" : "Chưa đúng"}</span></div>
+        ${q.instruction ? `<div class="q-instr">${fmt(q.instruction)}</div>` : ""}
+        <div class="q-text" style="font-size:17px">${fmtDe(q.question)}</div>
+        <div class="small muted">🔒 Đáp án và giải thích câu này cô mở sau hạn nộp.</div></div>`;
+    }
     const ok = q.chosen === q.correct;
     if (onlyWrong && ok) return "";
     return `<div class="card review ${ok ? "" : "wrong"}">
@@ -870,7 +950,7 @@ function reviewHtml(d, onlyWrong) {
       ${d.am_thanh ? ngheHtml(d, q) : ""}
       <div class="q-text" style="font-size:17px">${fmtDe(q.question)}</div>
       <div class="review-opts">${q.options.map((o, j) => `<div class="opt static ${o.k === q.correct ? "right" : o.k === q.chosen ? "wrong" : ""}"><span class="L">${LETTERS[j]}</span><span>${fmt(o.t)}${o.k === q.chosen ? " <i class='small'>(đã chọn)</i>" : ""}</span></div>`).join("")}</div>
-      ${ok ? (q.explanation ? `<details class="explain-mo"><summary>💡 Giải thích</summary><div class="explain">${fmt(q.explanation)}</div></details>` : "")
+      ${ok ? (q.explanation ? `<details class="explain-mo" ${d.mot_phan ? "open" : ""}><summary>💡 Giải thích</summary><div class="explain">${fmt(q.explanation)}</div></details>` : "")
         : `<div class="explain"><div class="small" style="margin-bottom:4px">${q.chosen === null || q.chosen === undefined ? "Em <b>bỏ trống</b> câu này" : `Em chọn: <b class="sai">${LETTERS[q.options.findIndex((o) => o.k === q.chosen)]}. ${fmt(q.options.find((o) => o.k === q.chosen).t)}</b>`}
           · Đáp án đúng: <b class="dung">${LETTERS[q.options.findIndex((o) => o.k === q.correct)]}. ${fmt(q.options.find((o) => o.k === q.correct).t)}</b></div>
           ${q.explanation ? `<b>💡 Giải thích</b><div>${fmt(q.explanation)}</div>` : '<span class="small muted">Cô chưa thêm giải thích cho câu này.</span>'}</div>`}</div>`;
@@ -886,7 +966,8 @@ async function sReview(id) {
     app.querySelector("main").innerHTML = `<div class="card center"><div class="logo-emoji">📖</div><h1>${esc(d.title)}</h1>
       <div class="big-score ${scoreCls(d.score)}" style="font-size:52px;margin:8px 0">${fmtScore(d.score)}</div>
       <div class="muted">Đúng ${d.correct}/${d.total} câu · nộp lúc ${fmtDT(d.submitted_at)}</div></div>
-      <label class="check"><input type="checkbox" data-ch="ow" ${onlyWrong ? "checked" : ""}> Chỉ xem câu sai</label>
+      ${d.mot_phan ? `<div class="alert alert-ok">Trước hạn nộp em xem được <b>các câu em làm đúng</b> kèm 💡 giải thích. Câu chưa đúng cô mở đáp án sau hạn${d.han ? " (" + fmtDT(d.han) + ")" : ""} — em thử nghĩ lại nhé!</div>`
+        : `<label class="check"><input type="checkbox" data-ch="ow" ${onlyWrong ? "checked" : ""}> Chỉ xem câu sai</label>`}
       ${reviewHtml(d, onlyWrong) || '<div class="empty">Không có câu sai nào. Tuyệt vời!</div>'}`;
   };
   ACT["ch:ow"] = (el) => { onlyWrong = el.checked; draw(); Object.keys(d.au || {}).forEach((i) => ngheVe(d, i)); };
@@ -1178,7 +1259,7 @@ function sAccount() {
 /* ================================================================
  *                           GIAO VIEN
  * ================================================================ */
-const SHOW_LABEL = { after_submit: "Ngay sau khi nộp", after_due: "Sau khi hết hạn", never: "Không cho xem" };
+const SHOW_LABEL = { after_submit: "Ngay sau khi nộp", after_due: "Sau hạn nộp (trước hạn: chỉ xem câu đúng)", never: "Không cho xem" };
 
 async function tHome() {
   app.innerHTML = tShell("home", spinner());
@@ -1239,7 +1320,7 @@ async function tAssignForm(id, quizId) {
   if (id && !a) { app.querySelector("main").innerHTML = errBox("Không tìm thấy bài giao."); return; }
   if (!id && !ov.quizzes.length) { app.querySelector("main").innerHTML = `<div class="alert alert-warn">Chưa có đề nào. <a href="#/t/q/new">Soạn đề trước</a>.</div>`; return; }
   if (!ov.classes.length) { app.querySelector("main").innerHTML = `<div class="alert alert-warn">Chưa có lớp nào. <a href="#/t/classes">Tạo lớp trước</a>.</div>`; return; }
-  const v = a || { mode: "homework", time_limit_min: null, max_attempts: null, shuffle_questions: true, shuffle_options: true, show_answers: "after_submit", class_ids: [], open_at: new Date().toISOString(), due_at: null };
+  const v = a || { mode: "homework", on_tung_cau: true, time_limit_min: null, max_attempts: null, shuffle_questions: true, shuffle_options: true, show_answers: "after_submit", class_ids: [], open_at: new Date().toISOString(), due_at: null };
   const cls = v.class_ids || [];
   app.querySelector("main").innerHTML = `
     <a href="${id ? "#/t/a/" + id : "#/t"}" class="small">‹ Quay lại</a>
@@ -1258,19 +1339,28 @@ async function tAssignForm(id, quizId) {
         <div class="field"><label class="f">Mở lúc</label><input class="input" type="datetime-local" name="open" value="${toLocalInput(v.open_at)}"></div>
         <div class="field"><label class="f">Hạn nộp (để trống = không hạn)</label><input class="input" type="datetime-local" name="due" value="${toLocalInput(v.due_at)}"></div>
         <div class="field"><label class="f">Thời gian làm (phút, 0 = không giới hạn)</label><input class="input" type="number" min="0" max="600" name="time" value="${v.time_limit_min || 0}"></div>
-        <div class="field"><label class="f">Số lần được làm (0 = không giới hạn)</label><input class="input" type="number" min="0" max="50" name="att" value="${v.max_attempts || 0}"></div>
+        <div class="field"><label class="f">Cho làm lại</label><select class="input" name="lamlai" data-ch="lamlai">
+          <option value="khong" ${v.max_attempts === 1 ? "selected" : ""}>Không (làm 1 lần)</option>
+          <option value="on" ${v.max_attempts !== 1 && v.on_tung_cau ? "selected" : ""}>Có — ôn từng câu (chọn đến khi đúng, phản hồi ngay)</option>
+          <option value="co" ${v.max_attempts !== 1 && !v.on_tung_cau ? "selected" : ""}>Có — làm lại cả bài như lần đầu</option></select></div>
+        <div class="field" id="attBox"><label class="f">Số lần được làm tối đa (0 = không giới hạn)</label><input class="input" type="number" min="0" max="50" name="att" value="${v.max_attempts && v.max_attempts !== 1 ? v.max_attempts : 0}"></div>
       </div>
-      <div class="field"><label class="f">Cho học sinh xem đáp án &amp; giải thích</label><select class="input" name="show">
-        ${Object.entries(SHOW_LABEL).map(([k, t]) => `<option value="${k}" ${v.show_answers === k ? "selected" : ""}>${t}</option>`).join("")}</select></div>
+      <div class="field"><label class="f">Xem kết quả &amp; đáp án</label><select class="input" name="show">
+        ${Object.entries(SHOW_LABEL).map(([k, t]) => `<option value="${k}" ${v.show_answers === k ? "selected" : ""}>${t}</option>`).join("")}</select>
+        <div class="small muted">«Sau hạn»: trước hạn em chỉ xem được các câu làm đúng (kèm giải thích), câu sai chưa lộ đáp án.</div></div>
       ${id ? `<label class="check"><input type="checkbox" name="arch" ${a.archived ? "checked" : ""}> Lưu trữ (ẩn khỏi học sinh)</label>` : `
       <label class="check"><input type="checkbox" name="shq" ${v.shuffle_questions ? "checked" : ""}> Xáo trộn thứ tự câu hỏi</label>
       <label class="check"><input type="checkbox" name="sho" ${v.shuffle_options ? "checked" : ""}> Xáo trộn thứ tự đáp án A/B/C/D</label>`}
       <div class="savebar"><button class="btn btn-primary btn-lg btn-block">${id ? "Lưu thay đổi" : "Giao bài"}</button></div>
     </form>`;
   const f = app.querySelector("form");
+  const veAtt = () => { document.getElementById("attBox").style.display = f.lamlai.value === "khong" ? "none" : ""; };
+  veAtt();
+  ACT["ch:lamlai"] = veAtt;
   ACT["ch:mode"] = (el) => {
-    if (el.value === "exam") { f.time.value = f.time.value === "0" ? 15 : f.time.value; f.att.value = 1; f.show.value = "after_due"; }
-    else { f.time.value = 0; f.att.value = 0; f.show.value = "after_submit"; }
+    if (el.value === "exam") { f.time.value = f.time.value === "0" ? 15 : f.time.value; f.lamlai.value = "khong"; f.show.value = "after_due"; }
+    else { f.time.value = 0; f.lamlai.value = "on"; f.att.value = 0; f.show.value = "after_submit"; }
+    veAtt();
   };
   ACT.save = (form) => busy(form.querySelector(".savebar button"), async () => {
     const p = {
@@ -1280,7 +1370,8 @@ async function tAssignForm(id, quizId) {
       open_at: fromLocalInput(form.open.value),
       due_at: fromLocalInput(form.due.value),
       time_limit_min: Number(form.time.value) || 0,
-      max_attempts: Number(form.att.value) || 0,
+      max_attempts: form.lamlai.value === "khong" ? 1 : (Number(form.att.value) === 1 ? 2 : Number(form.att.value) || 0),
+      on_tung_cau: form.lamlai.value === "on",
       show_answers: form.show.value,
     };
     try {
