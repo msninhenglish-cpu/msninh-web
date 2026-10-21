@@ -392,8 +392,8 @@ function coSoHtml() {
 function bannerHtml() {
   const so = SO_LIEU.filter((s) => s.so).slice(0, 3);
   const noi_dung = `<div class="pub-in bn-text">
-      <div class="bn-kicker">Lớp học tiếng Anh tại Sông Công, Thái Nguyên</div>
-      <h1>${esc(KHAU_HIEU)}</h1>
+      <h1>ANH NGỮ MS.NINH</h1>
+      <div class="bn-slogan">${esc(KHAU_HIEU)}</div>
       <p>${esc(GIOI_THIEU_NGAN)}</p>
       <div class="bn-stats">${so.map((s) => `<div>${ic(s.icon)}<b>${esc(s.so)}</b><small>${esc(s.chu)}</small></div>`).join("")}</div>
       <div class="pub-cta">${CTA_TU_VAN}<a class="btn btn-lg pub-btn-white" href="#/login">${ic("user")} Đăng nhập học sinh</a></div>
@@ -443,7 +443,7 @@ function pubHome() {
 function pubHead(t, sub) { return `<section class="pub-head"><div class="pub-in"><h1>${t}</h1>${sub ? `<p>${sub}</p>` : ""}</div></section>`; }
 
 function pubAbout() {
-  pubShell("gioi-thieu", "Giới thiệu", `${pubHead("Giới thiệu", "Ms.Ninh - Cam kết cải thiện<br>điểm số học sinh.")}
+  pubShell("gioi-thieu", "Giới thiệu", `${pubHead("Giới thiệu", "Ms.Ninh - Hành trình của sự tâm huyết với sự nghiệp giáo dục tiếng Anh")}
     <section class="pub-in sec"><div class="card pub-intro"><h2>${esc(GIOI_THIEU.tieu_de)}</h2>${GIOI_THIEU.doan.map((d) => `<p>${esc(d)}</p>`).join("")}
       ${CAM_KET.map((c) => `<p class="pub-commit">${ic("check")}<b>${esc(c)}</b></p>`).join("")}</div></section>
     <section class="pub-in sec">${secT("Hành trình")}<div class="pub-timeline">${CAU_CHUYEN.map((c) => `<div class="pub-tl"><div class="pub-tl-y">${esc(c.nam)}</div><div class="card"><b>${esc(c.tieu_de)}</b><p>${esc(c.chu)}</p></div></div>`).join("")}</div></section>
