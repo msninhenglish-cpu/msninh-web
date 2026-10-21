@@ -15,7 +15,7 @@ const KIEM_TRA_THU_BAT = true; // bai kiem tra thu cho khach (co bat 12/10/2026)
 // Nguon: D:\Cac du an cua Claude\Anh website msninh.vn\NOI_DUNG_TU_FANPAGE.md (Hana tong hop tu fanpage 11/10/2026, co cho phep)
 // + nhung gi co da chot truoc. KHONG them thong tin ngoai 2 nguon nay.
 const LIEN_HE = {
-  dia_chi: "Số nhà 433 đường Cách Mạng Tháng 8, phường Cải Đan, Sông Công, Thái Nguyên",
+  dia_chi: "Số nhà 433 đường Cách Mạng Tháng 8, phường Sông Công, T. Thái Nguyên",
   ghi_chu_dia_chi: "đối diện cổng phụ KĐT Hồng Vũ",
   sdt: "0837 168 222",      // hotline chinh
   sdt2: "0394 302 605",
@@ -63,7 +63,7 @@ const LY_DO = [
 const GIOI_THIEU = {
   tieu_de: "Ms.Ninh English – Tiếng Anh kết hợp khoa học công nghệ",
   doan: [
-    "Trung tâm Anh ngữ Ms.Ninh English ra đời năm 2018 tại Hà Nội và chính thức có mặt tại Sông Công từ tháng 01 năm 2023. Hơn 3 năm học qua, hàng nghìn học sinh Sông Công đã học và tiến bộ cùng cô Ninh — kết quả đó là minh chứng rõ nhất cho hiệu quả phương pháp giảng dạy của trung tâm.",
+    "Trung tâm Anh ngữ Ms.Ninh English ra đời năm 2018 tại Hà Nội và chính thức có mặt tại Sông Công từ tháng 01 năm 2023. Hơn 3 năm học qua, hàng nghìn học sinh Sông Công đã học và tiến bộ cùng Ms Ninh — kết quả đó là minh chứng rõ nhất cho hiệu quả phương pháp giảng dạy của trung tâm.",
     "Hôm nay, Ms.Ninh English đang nghiên cứu và phát triển để trở thành hệ thống giáo dục tiếng Anh kết hợp khoa học công nghệ hàng đầu tại Thái Nguyên: mỗi em có hồ sơ học tập riêng, bài tập và điểm số được theo dõi liên tục, phụ huynh nắm được tình hình học của con mọi lúc.",
   ],
 };
@@ -83,7 +83,7 @@ const CONG_NGHE = [
 ];
 
 const CAU_CHUYEN = [
-  { nam: "2018", tieu_de: "Những học sinh đầu tiên", chu: "Cô Ninh bắt đầu dạy những học sinh đầu tiên tại Hà Nội." },
+  { nam: "2018", tieu_de: "Những học sinh đầu tiên", chu: "Ms Ninh bắt đầu dạy những học sinh đầu tiên tại Hà Nội." },
   { nam: "2023", tieu_de: "Có mặt tại Sông Công", chu: "Trung tâm chính thức có mặt tại số 475 CMT8, TP. Sông Công, T. Thái Nguyên." },
   { nam: "2025", tieu_de: "Cơ sở 433 Cách Mạng Tháng 8", chu: "Từ 07/04/2025, lớp học chuyển về số nhà 433 đường Cách Mạng Tháng 8, phường Sông Công, T. Thái Nguyên." },
   { nam: "2026", tieu_de: "Cổng học sinh online", chu: "Triển khai cổng điện tử tại Msninh.vn. Học sinh làm bài tập online; ba mẹ theo dõi điểm số, tiến độ học tập, điểm danh và học phí ngay trên điện thoại." },
@@ -117,7 +117,7 @@ const CHUONG_TRINH = [
     anh: { nho: "anh/the_thcs_480.webp", lon: "anh/the_thcs_800.webp", alt: "Học sinh THCS nhận khen thưởng trước bảng lớp" },
     y: ["Chương trình nâng cao từ vựng và ngữ pháp", "Bám sát chương trình – luyện thi chuẩn Bộ GD&ĐT", "Kiểm tra định kỳ hằng ngày, hằng tuần", "Bồi dưỡng riêng học sinh mới, mất gốc"] },
   { id: "on-thi-10", nhan: "ÔN THI VÀO 10", icon: "target", mau: "cam", ten: "Ôn thi vào lớp 10 THPT", khoi: "Học sinh lớp 9", gia: "40.000đ", ghi_chu_gia: "",
-    anh: { nho: "anh/tt_diem9_vao10_2025_480.webp", lon: "anh/tt_diem9_vao10_2025_800.webp", alt: "Cô Ninh và hai học sinh đạt điểm 9 Tiếng Anh thi vào 10 năm 2025" },
+    anh: { nho: "anh/tt_diem9_vao10_2025_480.webp", lon: "anh/tt_diem9_vao10_2025_800.webp", alt: "Ms Ninh và hai học sinh đạt điểm 9 Tiếng Anh thi vào 10 năm 2025" },
     y: ["Luyện thi vào lớp 10 chất lượng cao cho học sinh khá, giỏi", "Luyện đề tiếng Anh sát kỳ thi", "2026: 100% học sinh lớp 9 vượt mục tiêu ban đầu"] },
 ];
 // Lo trinh theo chang: CHO CO. Moi chang: { ten: "...", mo_ta: "..." }
