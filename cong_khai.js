@@ -70,7 +70,7 @@ const GIOI_THIEU = {
 
 // Co so hoc tap (fanpage)
 const CO_SO = {
-  anh: { nho: "anh/co_so_mat_tien_2026_400.webp", lon: "anh/co_so_mat_tien_2026_600.webp", alt: "Mặt tiền Anh ngữ Ms.Ninh, số 433 Cách Mạng Tháng 8, biển hiệu Anh ngữ Ms.Ninh – Học tốt, điểm tốt" },
+  anh: { nho: "anh/co_so_mat_tien_2026b_400.webp", lon: "anh/co_so_mat_tien_2026b_600.webp", alt: "Mặt tiền Anh ngữ Ms.Ninh, số 433 Cách Mạng Tháng 8, biển hiệu Anh ngữ Ms.Ninh – Học tốt, điểm tốt" },
   y: ["Môi trường học tập thân thiện", "Trang thiết bị học tập đầy đủ, hiện đại"],
 };
 
