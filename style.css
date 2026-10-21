@@ -646,3 +646,9 @@ mark.cho-dang { background: #ffe066; color: inherit; padding: 1px 4px; border-ra
 /* phieu YC-DF0E6DCD19EAE29B31F2: ten trung tam len tren, khau hieu xuong duoi */
 .bn-slogan { font-size: 26px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: #ffd34d; margin: -4px 0 14px; }
 @media (max-width: 760px) { .bn-slogan { font-size: 20px; } }
+
+/* phieu YC-62176101698C56585D33: o "he thong du lieu dien tu" trai rong 1 hang, chu can doi */
+.bn-stats .bn-stat-rong { flex: 1 1 100%; max-width: 560px; text-align: left; }
+.bn-stats .bn-stat-rong b { font-size: 15.5px; line-height: 1.35; }
+.bn-stats .bn-stat-rong small { font-size: 13px; line-height: 1.45; }
+@media (max-width: 760px) { .bn-stats .bn-stat-rong b { font-size: 14px; } .bn-stats .bn-stat-rong small { font-size: 12px; } }

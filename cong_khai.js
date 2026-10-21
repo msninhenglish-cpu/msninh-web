@@ -41,7 +41,7 @@ const BANNER_ANH = [
 const SO_LIEU = [
   { icon: "cap", so: "2018", chu: "Bắt đầu tại Hà Nội" },
   { icon: "pin", so: "Sông Công 2023", chu: "Chính thức có mặt" },
-  { icon: "tag", so: "Từ 35.000đ/buổi", chu: "≈ 280.000đ/tháng/môn" },
+  { icon: "laptop", so: "Triển khai hệ thống dữ liệu điện tử tại Msninh.vn", chu: "Học sinh đăng nhập làm bài kiểm tra, bài tập về nhà, điểm danh buổi học và học phí", rong: true },
 ];
 // 4 con so that (fanpage) — khoi Thanh tich
 const SO_LIEU_LON = [
@@ -395,7 +395,7 @@ function bannerHtml() {
       <h1>ANH NGỮ MS.NINH</h1>
       <div class="bn-slogan">${esc(KHAU_HIEU)}</div>
       <p>${esc(GIOI_THIEU_NGAN)}</p>
-      <div class="bn-stats">${so.map((s) => `<div>${ic(s.icon)}<b>${esc(s.so)}</b><small>${esc(s.chu)}</small></div>`).join("")}</div>
+      <div class="bn-stats">${so.map((s) => `<div${s.rong ? ' class="bn-stat-rong"' : ""}>${ic(s.icon)}<b>${esc(s.so)}</b><small>${esc(s.chu)}</small></div>`).join("")}</div>
       <div class="pub-cta">${CTA_TU_VAN}<a class="btn btn-lg pub-btn-white" href="#/login">${ic("user")} Đăng nhập học sinh</a></div>
     </div>`;
   if (!BANNER_ANH.length) {
