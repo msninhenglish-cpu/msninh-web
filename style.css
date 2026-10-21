@@ -634,3 +634,8 @@ mark.cho-dang { background: #ffe066; color: inherit; padding: 1px 4px; border-ra
 .on-fb.sai { background: #fff1f1; border: 1px solid #ffb3b3; }
 .opt.goi-y { border-color: #2b8a3e; box-shadow: 0 0 0 2px #b2f2bb inset; }
 .opt[disabled] { cursor: default; }
+
+/* hop bat len: nut dong goc tren (22/10/2026) */
+.sheet { position: relative; }
+.sheet-x { position: absolute; top: 10px; right: 10px; z-index: 2; }
+.sheet > .sheet-x + h2, .sheet > .sheet-x + div > h2 { padding-right: 40px; }

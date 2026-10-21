@@ -32,15 +32,26 @@ function fmt(s) {
 }
 // De / doan van: noi dong bi ngat vun (Word/pandoc xuong dong giua cau) thanh doan lien, chi giu ngat doan that (dong trong);
 // giu xuong dong truoc loi thoai «Tên:», gach dau dong, «a)»; cho trong DANG LAM «<b>(50)</b> ____» to nen vang.
-function fmtDe(s) {
-  const doan = String(s == null ? "" : s).replace(/\r/g, "").split(/\n[ \t]*\n/).map((p) => p.split("\n").reduce((acc, line) => {
+function fmtDe(s, stt) {
+  let t = String(s == null ? "" : s).replace(/\r/g, "");
+  // De cu: hon nua chu nam trong <b> (ca doan bi dam) -> bo dam, chi giu <b>(N)</b>
+  const chu = t.replace(/<[^>]+>/g, "").length;
+  const dam = (t.match(/<b>[\s\S]*?<\/b>/gi) || []).reduce((n, m) => n + m.replace(/<[^>]+>/g, "").length, 0);
+  if (chu > 80 && dam > chu * 0.5) {
+    t = t.replace(/<b>\s*(\(\d{1,3}\))\s*<\/b>/gi, "\u0001$1\u0002").replace(/<\/?b\s*>/gi, "").replace(/\u0001(\(\d{1,3}\))\u0002/g, "<b>$1</b>");
+  }
+  // Chua danh dau cho dang lam nhung biet so cau goc -> danh dau «(stt)» dau tien trong doan
+  if (stt && !/<b>\s*\(\d{1,3}\)\s*<\/b>/i.test(t)) t = t.replace(new RegExp("\\((" + Number(stt) + ")\\)"), "<b>($1)</b>");
+  const doan = t.split(/\n[ \t]*\n/).map((p) => p.split("\n").reduce((acc, line) => {
     const l = line.trim();
     if (!l) return acc;
     if (!acc) return l;
     if (/^([A-ZÀ-Ỹ][\wÀ-ỹ .'’-]{0,24}:\s|[-•*+–]\s|\(?[a-hA-H][).]\s|\d{1,2}[.)]\s)/.test(l) || /<br\s*\/?>$/i.test(acc)) return acc + "\n" + l;
     return acc + " " + l;
   }, "")).filter(Boolean);
-  return doan.map((p) => `<p>${fmt(p).replace(/<b>\s*\((\d{1,3})\)\s*<\/b>(\s*(?:_{2,}|…+|\.{3,}))?/g, '<mark class="cho-dang"><b>($1)</b>$2</mark>')}</p>`).join("");
+  // To vang ca cum cho trong dang lam: «...(47)..», «__(47)__», «(47) ____», «(47) …»
+  return doan.map((p) => `<p>${fmt(p).replace(/(?:\.{2,}|…+|_{2,})?\s*<b>\s*\((\d{1,3})\)\s*<\/b>(?:\s*(?:_{2,}|…+|\.{2,}))?/g,
+    (m, n) => `<mark class="cho-dang">${m.trim().replace(/<b>\s*\(\d{1,3}\)\s*<\/b>/, "<b>(" + n + ")</b>")}</mark>`)}</p>`).join("");
 }
 function plain(s) { return String(s || "").replace(/<[^>]+>/g, ""); }
 // Thang lay tu dia chi trang: chi nhan dung dang YYYY-MM (chong chen ma qua link)
@@ -171,6 +182,7 @@ window.addEventListener("hashchange", () => {
 document.addEventListener("click", (e) => {
   const el = e.target.closest("[data-act]");
   if (!el) return;
+  if (el.dataset.act === "closeSheet") { e.preventDefault(); return dongSheet(); }
   const fn = ACT[el.dataset.act] || (el.dataset.act === "logout" ? doLogout : null);
   // "noop" chi de chan click trong khung bat len khoi dong khung; khong chan nut submit ben trong
   if (fn) { if (el.dataset.act !== "noop") e.preventDefault(); fn(el, e); }
@@ -642,13 +654,15 @@ async function tBaiNghe(qid, ten) {
           <label class="small">đến câu <input class="input" name="den" type="number" min="1" style="width:80px"></label>
           <label class="small">Số lần nghe <input class="input" name="lan" type="number" min="0" max="20" placeholder="0 = không giới hạn" style="width:150px"></label></div>
         <div class="small muted" style="margin:6px 0">Bỏ trống «từ câu / đến câu» = nghe cho cả đề. File mp3 / m4a / wav, tối đa 15 MB (mp3 64–96 kbps là đủ rõ).</div>
-        <div id="ngheMsg"></div><button class="btn btn-primary btn-block">⬆ Tải lên</button></form>`;
+        <div id="ngheMsg"></div><button class="btn btn-primary btn-block">⬆ Tải lên</button></form>
+      <button type="button" class="btn btn-ghost btn-block" data-act="closeSheet" style="margin-top:8px">Đóng</button>`;
   };
   const MIME = { mp3: "audio/mpeg", m4a: "audio/mp4", wav: "audio/wav", aac: "audio/aac", ogg: "audio/ogg" };
   ACT.ngheTai = (f) => busy(f.querySelector("button"), async () => {
     const file = f.f.files[0], msg = document.getElementById("ngheMsg");
     if (!file) return;
     const mime = file.type || MIME[(file.name.split(".").pop() || "").toLowerCase()] || "";
+    sheetBan = "File nghe đang tải lên dở. Huỷ tải lên và đóng?";
     try {
       if (file.size > 15 * 1048576) throw new Error("File quá 15 MB. Cô nén lại (mp3 64–96 kbps) rồi tải lên.");
       const v = await api("t_tao_ve_am_thanh", { p_quiz_id: qid, p_ten: file.name, p_mime: mime, p_kich_thuoc: file.size });
@@ -658,8 +672,8 @@ async function tBaiNghe(qid, ten) {
       if (up.error) throw new Error("Tải lên không được: " + up.error.message);
       const tu = f.tu.value ? Number(f.tu.value) : null, den = f.den.value ? Number(f.den.value) : tu;
       await api("t_gan_am_thanh", { p_quiz_id: qid, p_duong_dan: v.duong_dan, p_ten: f.ten.value || file.name.replace(/\.[^.]+$/, ""), p_tu: tu, p_den: den, p_so_lan: Number(f.lan.value) || null, p_kich_thuoc: file.size });
-      toast("Đã thêm file nghe"); ve();
-    } catch (e) { msg.innerHTML = errBox(e); }
+      sheetBan = null; toast("Đã thêm file nghe"); ve();
+    } catch (e) { msg.innerHTML = errBox(e); } finally { sheetBan = null; }
   });
   ACT.ngheXoa = (b) => {
     if (!confirm("Xoá file nghe này? Học sinh sẽ không nghe được nữa.")) return;
@@ -797,7 +811,7 @@ function quizDraw(qz) {
     <div class="muted small"><span class="badge ${qz.mode === "exam" ? "exam" : "hw"}" style="margin-right:6px">${qz.mode === "exam" ? "Kiểm tra" : "Bài tập"}</span>Câu ${qz.idx + 1} / ${n} · <span id="cnt"></span></div>
     ${q.instruction ? `<div class="q-instr" style="margin-top:10px">${fmt(q.instruction)}</div>` : ""}
     ${ngheHtml(qz, q)}
-    <div class="q-text">${fmtDe(q.question)}</div>
+    <div class="q-text">${fmtDe(q.question, q.stt)}</div>
     <div class="opts">${q.options.map((o, i) => `<button class="opt ${qz.answers[q.qi] === o.k ? "sel" : ""}" data-act="pick" data-k="${o.k}"><span class="L">${LETTERS[i]}</span><span>${fmt(o.t)}</span></button>`).join("")}</div>
     <div class="nav">
       <button class="btn" data-act="prev" ${qz.idx === 0 ? "disabled" : ""}>← Câu trước</button>
@@ -823,7 +837,7 @@ function onDraw(qz) {
     <div class="muted small"><span class="badge gold" style="margin-right:6px">Ôn từng câu</span>Câu ${qz.idx + 1} / ${n} · <span id="cnt"></span></div>
     ${q.instruction ? `<div class="q-instr" style="margin-top:10px">${fmt(q.instruction)}</div>` : ""}
     ${ngheHtml(qz, q)}
-    <div class="q-text">${fmtDe(q.question)}</div>
+    <div class="q-text">${fmtDe(q.question, q.stt)}</div>
     <div class="opts">${q.options.map((x, i) => {
       const cls = xong && o.dung[q.qi] === x.k ? "right" : sai.includes(x.k) ? "wrong" : fb && fb.dap_an === x.k ? "goi-y" : "";
       return `<button class="opt ${cls}" data-act="pick" data-k="${x.k}" ${xong || sai.includes(x.k) ? "disabled" : ""}><span class="L">${LETTERS[i]}</span><span>${fmt(x.t)}</span></button>`;
@@ -871,15 +885,28 @@ async function quizSave(qz) {
     if (r.submitted) quizSubmit(qz, true);
   } catch (e) { /* lan sau luu tiep; da co ban luu tren may */ } finally { qz.saving = false; }
 }
-function openSheet(html) {
+// Moi hop bat len: co nut ✕ (neu noi dung chua co), bam nen toi / phim Esc de dong. opt.khoa: khong cho dong (vd dang nop bai).
+let sheetBan = null;  // chuoi hoi xac nhan khi dang tai do (vd tai file nghe)
+function openSheet(html, opt) {
   closeSheet();
+  const khoa = opt && opt.khoa;
   const div = document.createElement("div");
   div.className = "sheet-bg"; div.id = "sheet"; div.dataset.act = "closeSheet";
-  div.innerHTML = `<div class="sheet" data-act="noop">${html}</div>`;
+  if (khoa) div.dataset.khoa = "1";
+  const coX = /data-act="closeSheet"[^>]*>\s*✕/.test(html);
+  div.innerHTML = `<div class="sheet" data-act="noop" role="dialog" aria-modal="true">${khoa || coX ? "" : '<button type="button" class="icon-btn sheet-x" data-act="closeSheet" aria-label="Đóng">✕</button>'}${html}</div>`;
   document.body.appendChild(div);
   return div;
 }
-function closeSheet() { const s = document.getElementById("sheet"); if (s) s.remove(); }
+function closeSheet() { const s = document.getElementById("sheet"); if (s) s.remove(); sheetBan = null; }
+// Dong do nguoi dung bam ✕ / nen / Esc / «Đóng»
+function dongSheet() {
+  const s = document.getElementById("sheet");
+  if (!s || s.dataset.khoa) return;
+  if (sheetBan && !confirm(sheetBan)) return;
+  closeSheet();
+}
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.getElementById("sheet")) { e.preventDefault(); dongSheet(); } });
 function quizAskSubmit(qz) {
   const miss = qz.qs.length - quizAnswered(qz);
   openSheet(`<h2>Nộp bài?</h2>
@@ -892,7 +919,7 @@ async function quizSubmit(qz, auto) {
   if (qz.submitting || qz.done) return;
   qz.submitting = true;
   quizLocal(qz);
-  openSheet(`<div style="text-align:center">${spinner()}<p>Đang nộp bài…</p></div>`);
+  openSheet(`<div style="text-align:center">${spinner()}<p>Đang nộp bài…</p></div>`, { khoa: true });
   try {
     const r = await api("submit_attempt", { p_attempt_id: qz.id, p_answers: qz.answers, p_leave_count: qz.leave });
     qz.done = true;
@@ -939,7 +966,7 @@ function reviewHtml(d, onlyWrong) {
       if (onlyWrong === "dung") return "";
       return `<div class="card review wrong"><div class="row between" style="margin-bottom:6px"><b>Câu ${i + 1}</b><span class="badge exam">${q.trong ? "Bỏ trống" : "Chưa đúng"}</span></div>
         ${q.instruction ? `<div class="q-instr">${fmt(q.instruction)}</div>` : ""}
-        <div class="q-text" style="font-size:17px">${fmtDe(q.question)}</div>
+        <div class="q-text" style="font-size:17px">${fmtDe(q.question, q.stt)}</div>
         <div class="small muted">🔒 Đáp án và giải thích câu này cô mở sau hạn nộp.</div></div>`;
     }
     const ok = q.chosen === q.correct;
@@ -948,7 +975,7 @@ function reviewHtml(d, onlyWrong) {
       <div class="row between" style="margin-bottom:6px"><b>Câu ${i + 1}</b>${ok ? '<span class="badge hw">Đúng</span>' : q.chosen === null || q.chosen === undefined ? '<span class="badge exam">Bỏ trống</span>' : '<span class="badge exam">Sai</span>'}</div>
       ${q.instruction ? `<div class="q-instr">${fmt(q.instruction)}</div>` : ""}
       ${d.am_thanh ? ngheHtml(d, q) : ""}
-      <div class="q-text" style="font-size:17px">${fmtDe(q.question)}</div>
+      <div class="q-text" style="font-size:17px">${fmtDe(q.question, q.stt)}</div>
       <div class="review-opts">${q.options.map((o, j) => `<div class="opt static ${o.k === q.correct ? "right" : o.k === q.chosen ? "wrong" : ""}"><span class="L">${LETTERS[j]}</span><span>${fmt(o.t)}${o.k === q.chosen ? " <i class='small'>(đã chọn)</i>" : ""}</span></div>`).join("")}</div>
       ${ok ? (q.explanation ? `<details class="explain-mo" ${d.mot_phan ? "open" : ""}><summary>💡 Giải thích</summary><div class="explain">${fmt(q.explanation)}</div></details>` : "")
         : `<div class="explain"><div class="small" style="margin-bottom:4px">${q.chosen === null || q.chosen === undefined ? "Em <b>bỏ trống</b> câu này" : `Em chọn: <b class="sai">${LETTERS[q.options.findIndex((o) => o.k === q.chosen)]}. ${fmt(q.options.find((o) => o.k === q.chosen).t)}</b>`}
