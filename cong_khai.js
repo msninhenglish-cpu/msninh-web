@@ -28,7 +28,7 @@ const LIEN_HE = {
 };
 
 const KHAU_HIEU = "Học tốt, điểm tốt";
-const GIOI_THIEU_NGAN = "Trung tâm tiếng Anh cho học sinh tiểu học và THCS tại Sông Công. Lớp nhỏ, cô kèm sát từng em, cam kết cải thiện điểm số.";
+const GIOI_THIEU_NGAN = "Trung tâm tiếng Anh cho học sinh tiểu học và THCS tại Sông Công - Cam kết cải thiện điểm số.";
 const LOI_KEU_GOI = "Đăng ký kiểm tra năng lực miễn phí"; // loi keu goi chinh (bai tuyen sinh 2026–2027)
 
 // Anh banner (WebP <= 150 KB, 800/1600). Ca 2 anh tu bai "Tong ket Trung thu 2026".
@@ -53,17 +53,17 @@ const SO_LIEU_LON = [
 
 // Ly do chon (co chot 11/10/2026)
 const LY_DO = [
-  { icon: "users", tieu_de: "Lớp nhỏ, cô kèm sát từng em" },
-  { icon: "layers", tieu_de: "Buổi học đủ kỹ năng, đạt mới về" },
-  { icon: "trend", tieu_de: "Cam kết cải thiện điểm số, theo dõi bằng dữ liệu" },
-  { icon: "tag", tieu_de: "Học phí ưu đãi từ 35.000đ/buổi" },
+  { icon: "users", tieu_de: "Chất lượng luôn bảo đảm, cô kèm sát từng em" },
+  { icon: "layers", tieu_de: "Buổi học đủ kỹ năng, học sinh\nđạt chuẩn mới được ra về" },
+  { icon: "trend", tieu_de: "Cam kết cải thiện điểm số, theo dõi bằng dữ liệu trực quan" },
+  { icon: "tag", tieu_de: "Học phí ưu đãi từ 35.000đ/buổi (280.000đ/tháng)" },
 ];
 
 // Gioi thieu (co chot 11/10/2026, chu nguyen van)
 const GIOI_THIEU = {
   tieu_de: "Ms.Ninh English – Tiếng Anh kết hợp khoa học công nghệ",
   doan: [
-    "Ms.Ninh English ra đời năm 2018 từ những học sinh đầu tiên tại Hà Nội và chính thức có mặt tại Sông Công từ năm 2023. Hơn 3 năm học qua, hàng nghìn học sinh Sông Công đã học và tiến bộ cùng cô Ninh — kết quả đó là minh chứng rõ nhất cho hiệu quả phương pháp giảng dạy của trung tâm.",
+    "Trung tâm Anh ngữ Ms.Ninh English ra đời năm 2018 tại Hà Nội và chính thức có mặt tại Sông Công từ tháng 01 năm 2023. Hơn 3 năm học qua, hàng nghìn học sinh Sông Công đã học và tiến bộ cùng cô Ninh — kết quả đó là minh chứng rõ nhất cho hiệu quả phương pháp giảng dạy của trung tâm.",
     "Hôm nay, Ms.Ninh English đang nghiên cứu và phát triển để trở thành hệ thống giáo dục tiếng Anh kết hợp khoa học công nghệ hàng đầu tại Thái Nguyên: mỗi em có hồ sơ học tập riêng, bài tập và điểm số được theo dõi liên tục, phụ huynh nắm được tình hình học của con mọi lúc.",
   ],
 };
@@ -71,7 +71,7 @@ const GIOI_THIEU = {
 // Co so hoc tap (fanpage)
 const CO_SO = {
   anh: { nho: "anh/co_so_mat_tien_400.webp", lon: "anh/co_so_mat_tien_600.webp", alt: "Mặt tiền Anh ngữ Ms.Ninh, số 433 Cách Mạng Tháng 8, biển hiệu Anh ngữ Ms.Ninh – Học tốt, điểm tốt" },
-  y: ["Chuyển về địa chỉ mới từ 07/04/2025", "Lớp học có điều hoà, ti vi, bàn ghế sạch sẽ"],
+  y: ["Môi trường học tập thân thiện", "Trang thiết bị học tập đầy đủ, hiện đại"],
 };
 
 // Hoc cung cong nghe (co chot). sap_co = true -> nhan "Sắp có"
@@ -84,23 +84,23 @@ const CONG_NGHE = [
 
 const CAU_CHUYEN = [
   { nam: "2018", tieu_de: "Những học sinh đầu tiên", chu: "Cô Ninh bắt đầu dạy những học sinh đầu tiên tại Hà Nội." },
-  { nam: "2023", tieu_de: "Có mặt tại Sông Công", chu: "Trung tâm chính thức có mặt tại Sông Công, Thái Nguyên." },
-  { nam: "2025", tieu_de: "Cơ sở 433 Cách Mạng Tháng 8", chu: "Từ 07/04/2025, lớp học chuyển về số nhà 433 đường Cách Mạng Tháng 8, phường Cải Đan." },
-  { nam: "2026", tieu_de: "Cổng học sinh online", chu: "Học sinh làm bài tập online; ba mẹ theo dõi điểm, điểm danh và học phí ngay trên điện thoại." },
+  { nam: "2023", tieu_de: "Có mặt tại Sông Công", chu: "Trung tâm chính thức có mặt tại số 475 CMT8, TP. Sông Công, T. Thái Nguyên." },
+  { nam: "2025", tieu_de: "Cơ sở 433 Cách Mạng Tháng 8", chu: "Từ 07/04/2025, lớp học chuyển về số nhà 433 đường Cách Mạng Tháng 8, phường Sông Công, T. Thái Nguyên." },
+  { nam: "2026", tieu_de: "Cổng học sinh online", chu: "Triển khai cổng điện tử tại Msninh.vn. Học sinh làm bài tập online; ba mẹ theo dõi điểm số, tiến độ học tập, điểm danh và học phí ngay trên điện thoại." },
 ];
 
-const CAM_KET = ["Cam kết cải thiện điểm số – Chất lượng bảo đảm."];
+const CAM_KET = ["Luôn dẫn đầu về chất lượng chuyên môn!"];
 
 // Phuong phap giang day (co chot)
 const PHUONG_PHAP = [
   { ten: "Một buổi học trọn vẹn — học thật, đạt mới về",
-    mo_ta: "Mỗi buổi học, học sinh rèn nhiều kỹ năng liên tục và chỉ kết thúc buổi học khi đạt yêu cầu.",
+    mo_ta: "Mỗi buổi học, học sinh được rèn cả 04 kỹ năng nghe, nói, đọc, viết; được làm bài tập kiểm tra hằng ngày, giao bài kiểm tra online và chỉ kết thúc buổi học khi đạt yêu cầu.",
     buoc: ["Nghe – Nói – Đọc – Viết", "Làm bài kiểm tra tại lớp", "Kiểm tra miệng tại lớp", "Giao bài tập về nhà online", "Đạt yêu cầu mới kết thúc buổi học"] },
 ];
 
 // Doi ngu (co chot 11/10/2026: chi ghi "Co Ninh", khong ghi bang cap/kinh nghiem). Trung tam chi day Tieng Anh.
 const GIAO_VIEN = [
-  { ten: "Cô Ninh", vai_tro: "Giám đốc trung tâm", anh: "anh/co_ninh_tot_nghiep_300.webp", anh_2x: "anh/co_ninh_tot_nghiep_600.webp", gioi_thieu: "", bat: true },
+  { ten: "Ms Ninh", vai_tro: "Quản lý chất lượng, trực tiếp giảng dạy", anh: "anh/co_ninh_tot_nghiep_300.webp", anh_2x: "anh/co_ninh_tot_nghiep_600.webp", gioi_thieu: "", bat: true },
 ];
 
 // Chuong trinh hoc (bai tuyen sinh 2026–2027 + co chot gia)
@@ -392,7 +392,7 @@ function coSoHtml() {
 function bannerHtml() {
   const so = SO_LIEU.filter((s) => s.so).slice(0, 3);
   const noi_dung = `<div class="pub-in bn-text">
-      <div class="bn-kicker">Trung tâm Anh ngữ · Sông Công, Thái Nguyên</div>
+      <div class="bn-kicker">Lớp học tiếng Anh tại Sông Công, Thái Nguyên</div>
       <h1>${esc(KHAU_HIEU)}</h1>
       <p>${esc(GIOI_THIEU_NGAN)}</p>
       <div class="bn-stats">${so.map((s) => `<div>${ic(s.icon)}<b>${esc(s.so)}</b><small>${esc(s.chu)}</small></div>`).join("")}</div>
@@ -443,7 +443,7 @@ function pubHome() {
 function pubHead(t, sub) { return `<section class="pub-head"><div class="pub-in"><h1>${t}</h1>${sub ? `<p>${sub}</p>` : ""}</div></section>`; }
 
 function pubAbout() {
-  pubShell("gioi-thieu", "Giới thiệu", `${pubHead("Giới thiệu", "Lớp học cam kết cải thiện điểm số học sinh.")}
+  pubShell("gioi-thieu", "Giới thiệu", `${pubHead("Giới thiệu", "Ms.Ninh - Cam kết cải thiện<br>điểm số học sinh.")}
     <section class="pub-in sec"><div class="card pub-intro"><h2>${esc(GIOI_THIEU.tieu_de)}</h2>${GIOI_THIEU.doan.map((d) => `<p>${esc(d)}</p>`).join("")}
       ${CAM_KET.map((c) => `<p class="pub-commit">${ic("check")}<b>${esc(c)}</b></p>`).join("")}</div></section>
     <section class="pub-in sec">${secT("Hành trình")}<div class="pub-timeline">${CAU_CHUYEN.map((c) => `<div class="pub-tl"><div class="pub-tl-y">${esc(c.nam)}</div><div class="card"><b>${esc(c.tieu_de)}</b><p>${esc(c.chu)}</p></div></div>`).join("")}</div></section>
