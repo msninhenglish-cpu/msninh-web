@@ -30,6 +30,18 @@ function esc(s) {
 function fmt(s) {
   return esc(s).replace(/&lt;(\/?)(b|i|u|br)\s*\/?&gt;/gi, "<$1$2>").replace(/\n/g, "<br>");
 }
+// De / doan van: noi dong bi ngat vun (Word/pandoc xuong dong giua cau) thanh doan lien, chi giu ngat doan that (dong trong);
+// giu xuong dong truoc loi thoai «Tên:», gach dau dong, «a)»; cho trong DANG LAM «<b>(50)</b> ____» to nen vang.
+function fmtDe(s) {
+  const doan = String(s == null ? "" : s).replace(/\r/g, "").split(/\n[ \t]*\n/).map((p) => p.split("\n").reduce((acc, line) => {
+    const l = line.trim();
+    if (!l) return acc;
+    if (!acc) return l;
+    if (/^([A-ZÀ-Ỹ][\wÀ-ỹ .'’-]{0,24}:\s|[-•*+–]\s|\(?[a-hA-H][).]\s|\d{1,2}[.)]\s)/.test(l) || /<br\s*\/?>$/i.test(acc)) return acc + "\n" + l;
+    return acc + " " + l;
+  }, "")).filter(Boolean);
+  return doan.map((p) => `<p>${fmt(p).replace(/<b>\s*\((\d{1,3})\)\s*<\/b>(\s*(?:_{2,}|…+|\.{3,}))?/g, '<mark class="cho-dang"><b>($1)</b>$2</mark>')}</p>`).join("");
+}
 function plain(s) { return String(s || "").replace(/<[^>]+>/g, ""); }
 // Thang lay tu dia chi trang: chi nhan dung dang YYYY-MM (chong chen ma qua link)
 function thangHopLe(t) { return /^\d{4}-(0[1-9]|1[0-2])$/.test(t || "") ? t : thangNayVN(); }
@@ -184,6 +196,11 @@ async function route() {
     // Trang gioi thieu cong khai: chay ca khi chua tai duoc thu vien ket noi
     if (pubRoute(p[0])) return pubRoute(p[0])();
     if (!p[0] && (!S.token || !S.user)) return viewLanding();
+    if (p[0] === "kiemtra" && (!S.token || !S.user)) {
+      try { sessionStorage.setItem("kt_sau_dn", location.hash); } catch (e) { /* bo */ }
+      S.flash = "Em đăng nhập để làm bài cô giao nhé.";
+      return go("#/login");
+    }
     taiThuVien().catch(() => {}); // tai truoc trong luc ve trang
     if (p[0] === "setup") return viewSetup();
     if (!S.token || !S.user) return p[0] === "login" ? viewLogin() : viewLanding();
@@ -214,6 +231,7 @@ async function route() {
     switch (p[0]) {
       case undefined: return sHome();
       case "start": return sStart(+p[1]);
+      case "kiemtra": return sKiemTra(decodeURIComponent(p[1] || ""));
       case "quiz": return sQuiz(+p[1]);
       case "result": return sResult();
       case "review": return sReview(+p[1]);
@@ -316,6 +334,12 @@ async function doLogout() {
 /* ================= trang chu msninh.vn ================= */
 // Website gioi thieu (Trang chu, Gioi thieu, Chuong trinh hoc...) nam o cong_khai.js
 function viewLanding() { pubHome(); }
+// Trang can mo sau khi dang nhap (vd link bai /kiemtra/<ma> mo khi chua dang nhap)
+function sauDangNhap() {
+  let h = null;
+  try { h = sessionStorage.getItem("kt_sau_dn"); sessionStorage.removeItem("kt_sau_dn"); } catch (e) { /* bo */ }
+  return h && /^#\/kiemtra\/[A-Za-z0-9._-]+$/.test(h) ? h : "#/";
+}
 
 /* ================= dang nhap ================= */
 function viewLogin() {
@@ -360,7 +384,7 @@ function viewLogin() {
         r = await api("login_ten", { p_lop_id: Number(f.lop.value), p_ho_ten: f.ten.value, p_password: f.pw.value }, false);
       } else r = await api("login", { p_code: f.code.value, p_password: f.pw.value }, false);
       setSession(r.token, r.user);
-      go(r.user.role === "teacher" ? "#/t" : r.user.default_password ? "#/doi-mk" : "#/");
+      go(r.user.role === "teacher" ? "#/t" : r.user.default_password ? "#/doi-mk" : sauDangNhap());
     } catch (e) { document.getElementById("err").innerHTML = errBox(e); }
   });
 }
@@ -421,7 +445,7 @@ function viewDoiMk() {
       await api("change_password", { p_old: "", p_new: nw });
       S.user.default_password = false; LS.set("kt_user", S.user);
       toast("Đã lưu mật khẩu mới. Lần sau em đăng nhập bằng mật khẩu này nhé.", 4000);
-      go("#/");
+      go(sauDangNhap());
     } catch (e) { box.innerHTML = errBox(e); }
   });
 }
@@ -494,6 +518,23 @@ async function sHome() {
   app.innerHTML = sShell("home", html, { right: refresh });
 }
 
+// Link bai cua de (1 de giao nhieu lop): dua em vao dung lan giao cua lop minh; nhieu lan giao thi cho chon
+async function sKiemTra(ma) {
+  app.innerHTML = sShell("home", spinner(), { left: backBtn("#/") });
+  ACT.retry = () => route();
+  let d;
+  try { d = await api("student_tim_bai", { p_ma: ma }); } catch (e) { app.querySelector("main").innerHTML = pageError(e, "#/"); return; }
+  const mo = d.ds.filter((a) => !a.closed || a.used);
+  if (d.ds.length === 1) { location.replace("#/start/" + d.ds[0].id); return; }
+  app.querySelector("main").innerHTML = `<h1>${esc(d.ten)}</h1>
+    ${d.ds.length ? `<p class="muted">Cô giao bài này ${d.ds.length} lần cho lớp em. Em chọn bài cần làm:</p>
+      ${d.ds.map((a) => `<a class="card tap" href="#/start/${a.id}" style="display:block;text-decoration:none;color:inherit">
+        <span class="badge ${a.mode === "exam" ? "exam" : "hw"}">${a.mode === "exam" ? "Kiểm tra" : "Bài tập"}</span>
+        <h3 style="margin:8px 0 4px">${esc(a.title)}</h3>
+        <div class="small muted">${a.due_at ? "Hạn " + fmtDT(a.due_at) + (a.closed ? " (đã hết)" : "") : "Không có hạn"}${a.used ? " · đã làm " + a.used + " lần" : ""}</div></a>`).join("")}`
+      : '<div class="alert alert-warn">Bài này chưa được giao cho lớp em (hoặc chưa đến giờ mở). Em hỏi lại cô nhé.</div>'}
+    ${mo.length ? "" : ""}`;
+}
 async function sStart(aid) {
   app.innerHTML = sShell("home", spinner(), { left: backBtn("#/") });
   ACT.retry = () => route();
@@ -529,6 +570,108 @@ async function sStart(aid) {
   ACT.rv = (el) => { if (el.dataset.ok === "1") go("#/review/" + el.dataset.id); else toast("Cô chưa mở đáp án bài này."); };
 }
 
+/* ---------------- bai nghe ---------------- */
+function urlAmThanh(dd) { return String(CFG.SUPABASE_URL).replace(/\/$/, "") + "/storage/v1/object/public/am_thanh/" + dd.split("/").map(encodeURIComponent).join("/"); }
+// Moi trang (lam bai / xem lai) giu 1 bo Audio: chuyen cau van nghe tiep. so lan nghe (GV gioi han) dem tren may theo luot lam.
+function ngheChuanBi(holder, ds, key) {
+  if (holder.au) return;
+  holder.au = {}; holder.nkey = key;
+  (ds || []).forEach((f, i) => {
+    const a = new Audio(); a.preload = "none"; a.src = urlAmThanh(f.duong_dan);
+    const ve = () => ngheVe(holder, i);
+    ["timeupdate", "play", "pause", "ended", "loadedmetadata"].forEach((ev) => a.addEventListener(ev, ve));
+    a.addEventListener("error", () => { const el = document.querySelector(`[data-nghe="${i}"] .nghe-tg`); if (el) el.textContent = "Không tải được âm thanh"; });
+    holder.au[i] = { a, f };
+  });
+}
+function ngheLan(holder, i) { return holder.nkey ? Number(LS.get(holder.nkey + "_" + i) || 0) : 0; }
+function ngheHtml(holder, q) {
+  const ds = holder.am_thanh || [];
+  if (!ds.length) return "";
+  ngheChuanBi(holder, ds, holder.nkey === undefined && holder.id ? "kt_nghe_" + holder.id : holder.nkey);
+  return ds.map((f, i) => (f.tu == null || (q.stt >= f.tu && q.stt <= f.den)) ? `<div class="nghe" data-nghe="${i}">
+    <button class="nghe-nut" data-act="ngheBat" data-i="${i}" aria-label="Phát / tạm dừng">▶</button>
+    <div class="grow"><div class="small"><b>🎧 ${esc(f.ten || "Bài nghe")}</b>${f.tu != null ? ` <span class="muted">· câu ${f.tu === f.den ? f.tu : f.tu + "–" + f.den}</span>` : ""}</div>
+      <input type="range" class="nghe-tua" data-in="ngheTua" data-i="${i}" min="0" max="1000" value="0" aria-label="Tua">
+      <div class="small muted"><span class="nghe-tg">0:00</span>${f.so_lan && holder.nkey ? ` · <span class="nghe-con"></span>` : ""}</div></div></div>` : "").join("");
+}
+function ngheVe(holder, i) {
+  const x = holder.au && holder.au[i]; if (!x) return;
+  const a = x.a, el = document.querySelector(`[data-nghe="${i}"]`); if (!el) return;
+  const mm = (t) => isFinite(t) ? Math.floor(t / 60) + ":" + String(Math.floor(t % 60)).padStart(2, "0") : "--:--";
+  el.querySelector(".nghe-nut").textContent = a.paused ? "▶" : "⏸";
+  el.querySelector(".nghe-tg").textContent = mm(a.currentTime) + " / " + mm(a.duration);
+  const r = el.querySelector(".nghe-tua"); if (r && isFinite(a.duration) && a.duration > 0 && !r.matches(":active")) r.value = Math.round(a.currentTime / a.duration * 1000);
+  const c = el.querySelector(".nghe-con"); if (c) { const con = x.f.so_lan - ngheLan(holder, i); c.textContent = con > 0 ? `còn ${con} lần nghe` : "đã nghe đủ số lần"; }
+}
+function ngheGanNut(holder) {
+  ACT.ngheBat = (b) => {
+    const i = b.dataset.i, x = holder.au[i]; if (!x) return;
+    const a = x.a;
+    if (!a.paused) { a.pause(); return; }
+    Object.values(holder.au).forEach((y) => { if (y !== x) y.a.pause(); });
+    const tuDau = a.currentTime < 0.5 || a.ended;
+    if (tuDau && x.f.so_lan && holder.nkey) {
+      const n = ngheLan(holder, i);
+      if (n >= x.f.so_lan) { toast(`Em đã nghe đủ ${x.f.so_lan} lần bài này.`, 3000); return; }
+      LS.set(holder.nkey + "_" + i, n + 1);
+    }
+    if (a.ended) a.currentTime = 0;
+    a.play().catch(() => toast("Chưa phát được âm thanh. Em kiểm tra mạng / âm lượng rồi bấm lại."));
+  };
+  ACT["in:ngheTua"] = (r) => { const x = holder.au[r.dataset.i]; if (x && isFinite(x.a.duration)) x.a.currentTime = r.value / 1000 * x.a.duration; };
+}
+function ngheDung(holder) { if (holder && holder.au) Object.values(holder.au).forEach((y) => { try { y.a.pause(); } catch (e) { /* bo */ } }); }
+
+// GV: quan ly file nghe cua 1 de (tai len Supabase Storage bang ve 15 phut; ≤ 15 MB / file)
+async function tBaiNghe(qid, ten) {
+  openSheet(`<h2>🎧 Bài nghe — ${esc(ten)}</h2><div id="ngheDs">${spinner()}</div>`);
+  const ve = async () => {
+    let q; try { q = await api("t_get_quiz", { p_id: qid }); } catch (e) { document.getElementById("ngheDs").innerHTML = errBox(e); return; }
+    const ds = q.am_thanh || [];
+    document.getElementById("ngheDs").innerHTML = `${ds.length ? ds.map((f) => `<div class="card" style="padding:10px;margin:8px 0">
+        <div class="row between"><b>${esc(f.ten)}</b><button class="btn btn-sm btn-ghost" data-act="ngheXoa" data-dd="${esc(f.duong_dan)}">Xoá</button></div>
+        <div class="small muted">${f.tu != null ? (f.tu === f.den ? `Câu ${f.tu}` : `Câu ${f.tu}–${f.den}`) : "Cả đề"} · ${f.so_lan ? "nghe tối đa " + f.so_lan + " lần" : "nghe không giới hạn"}${f.kich_thuoc ? " · " + (f.kich_thuoc / 1048576).toFixed(1) + " MB" : ""}</div>
+        <audio controls preload="none" src="${esc(urlAmThanh(f.duong_dan))}" style="width:100%;margin-top:6px"></audio></div>`).join("") : '<p class="muted small">Đề này chưa có file nghe.</p>'}
+      <form data-submit="ngheTai" class="card" style="padding:12px;margin-top:10px"><b>+ Thêm file nghe</b>
+        <div class="field"><input class="input" type="file" name="f" accept="audio/*,.mp3,.m4a,.wav,.aac,.ogg" required></div>
+        <div class="field"><label class="f">Tên hiển thị</label><input class="input" name="ten" maxlength="120" placeholder="vd: Phần Nghe – Part 1"></div>
+        <div class="row" style="gap:8px;flex-wrap:wrap"><label class="small">Từ câu <input class="input" name="tu" type="number" min="1" style="width:80px"></label>
+          <label class="small">đến câu <input class="input" name="den" type="number" min="1" style="width:80px"></label>
+          <label class="small">Số lần nghe <input class="input" name="lan" type="number" min="0" max="20" placeholder="0 = không giới hạn" style="width:150px"></label></div>
+        <div class="small muted" style="margin:6px 0">Bỏ trống «từ câu / đến câu» = nghe cho cả đề. File mp3 / m4a / wav, tối đa 15 MB (mp3 64–96 kbps là đủ rõ).</div>
+        <div id="ngheMsg"></div><button class="btn btn-primary btn-block">⬆ Tải lên</button></form>`;
+  };
+  const MIME = { mp3: "audio/mpeg", m4a: "audio/mp4", wav: "audio/wav", aac: "audio/aac", ogg: "audio/ogg" };
+  ACT.ngheTai = (f) => busy(f.querySelector("button"), async () => {
+    const file = f.f.files[0], msg = document.getElementById("ngheMsg");
+    if (!file) return;
+    const mime = file.type || MIME[(file.name.split(".").pop() || "").toLowerCase()] || "";
+    try {
+      if (file.size > 15 * 1048576) throw new Error("File quá 15 MB. Cô nén lại (mp3 64–96 kbps) rồi tải lên.");
+      const v = await api("t_tao_ve_am_thanh", { p_quiz_id: qid, p_ten: file.name, p_mime: mime, p_kich_thuoc: file.size });
+      msg.innerHTML = `<p class="small">Đang tải lên ${(file.size / 1048576).toFixed(1)} MB…</p>`;
+      // gui noi dung tho + dung loai file (File/Blob se thanh multipart, kho kiem loai)
+      const up = await client().storage.from("am_thanh").upload(v.duong_dan, await file.arrayBuffer(), { contentType: mime, upsert: false });
+      if (up.error) throw new Error("Tải lên không được: " + up.error.message);
+      const tu = f.tu.value ? Number(f.tu.value) : null, den = f.den.value ? Number(f.den.value) : tu;
+      await api("t_gan_am_thanh", { p_quiz_id: qid, p_duong_dan: v.duong_dan, p_ten: f.ten.value || file.name.replace(/\.[^.]+$/, ""), p_tu: tu, p_den: den, p_so_lan: Number(f.lan.value) || null, p_kich_thuoc: file.size });
+      toast("Đã thêm file nghe"); ve();
+    } catch (e) { msg.innerHTML = errBox(e); }
+  });
+  ACT.ngheXoa = (b) => {
+    if (!confirm("Xoá file nghe này? Học sinh sẽ không nghe được nữa.")) return;
+    busy(b, async () => {
+      try {
+        const r = await api("t_xoa_am_thanh", { p_quiz_id: qid, p_duong_dan: b.dataset.dd });
+        await client().storage.from("am_thanh").remove([r.xoa]);
+        toast("Đã xoá"); ve();
+      } catch (e) { toast(e.message, 4000); }
+    });
+  };
+  ve();
+}
+
 /* ---------------- lam bai ---------------- */
 let Q = null;
 async function sQuiz(aid) {
@@ -550,7 +693,7 @@ async function sQuiz(aid) {
     idx: Math.min((local && local.idx) || 0, d.questions.length - 1),
     deadline: d.deadline_at ? Date.parse(d.deadline_at) : null,
     offset: Date.parse(d.server_now) - Date.now(),
-    dirty: !!useLocal, submitting: false, done: false,
+    dirty: !!useLocal, submitting: false, done: false, am_thanh: d.am_thanh || [], nkey: "kt_nghe_" + d.attempt_id,
   };
   const qz = Q;
   const tick = setInterval(() => quizTick(qz), 1000);
@@ -567,7 +710,9 @@ async function sQuiz(aid) {
   const onUnload = (e) => { if (!qz.done) { quizLocal(qz); e.preventDefault(); e.returnValue = ""; } };
   document.addEventListener("visibilitychange", onVis);
   window.addEventListener("beforeunload", onUnload);
+  ngheGanNut(qz);
   cleanup = () => {
+    ngheDung(qz);
     clearInterval(tick); clearInterval(autosave);
     document.removeEventListener("visibilitychange", onVis);
     window.removeEventListener("beforeunload", onUnload);
@@ -613,7 +758,8 @@ function quizDraw(qz) {
   <div class="card">
     <div class="muted small"><span class="badge ${qz.mode === "exam" ? "exam" : "hw"}" style="margin-right:6px">${qz.mode === "exam" ? "Kiểm tra" : "Bài tập"}</span>Câu ${qz.idx + 1} / ${n} · <span id="cnt"></span></div>
     ${q.instruction ? `<div class="q-instr" style="margin-top:10px">${fmt(q.instruction)}</div>` : ""}
-    <div class="q-text">${fmt(q.question)}</div>
+    ${ngheHtml(qz, q)}
+    <div class="q-text">${fmtDe(q.question)}</div>
     <div class="opts">${q.options.map((o, i) => `<button class="opt ${qz.answers[q.qi] === o.k ? "sel" : ""}" data-act="pick" data-k="${o.k}"><span class="L">${LETTERS[i]}</span><span>${fmt(o.t)}</span></button>`).join("")}</div>
     <div class="nav">
       <button class="btn" data-act="prev" ${qz.idx === 0 ? "disabled" : ""}>← Câu trước</button>
@@ -625,6 +771,7 @@ function quizDraw(qz) {
   </div>`;
   quizCounters(qz);
   quizTick(qz);
+  Object.keys(qz.au || {}).forEach((i) => ngheVe(qz, i));
 }
 function quizCounters(qz) {
   const a = quizAnswered(qz), n = qz.qs.length;
@@ -713,13 +860,15 @@ function sResult() {
 }
 
 function reviewHtml(d, onlyWrong) {
+  if (d.am_thanh) ngheChuanBi(d, d.am_thanh, null);
   return d.questions.map((q, i) => {
     const ok = q.chosen === q.correct;
     if (onlyWrong && ok) return "";
     return `<div class="card review ${ok ? "" : "wrong"}">
       <div class="row between" style="margin-bottom:6px"><b>Câu ${i + 1}</b>${ok ? '<span class="badge hw">Đúng</span>' : q.chosen === null || q.chosen === undefined ? '<span class="badge exam">Bỏ trống</span>' : '<span class="badge exam">Sai</span>'}</div>
       ${q.instruction ? `<div class="q-instr">${fmt(q.instruction)}</div>` : ""}
-      <div class="q-text" style="font-size:17px">${fmt(q.question)}</div>
+      ${d.am_thanh ? ngheHtml(d, q) : ""}
+      <div class="q-text" style="font-size:17px">${fmtDe(q.question)}</div>
       <div class="review-opts">${q.options.map((o, j) => `<div class="opt static ${o.k === q.correct ? "right" : o.k === q.chosen ? "wrong" : ""}"><span class="L">${LETTERS[j]}</span><span>${fmt(o.t)}${o.k === q.chosen ? " <i class='small'>(đã chọn)</i>" : ""}</span></div>`).join("")}</div>
       ${ok ? (q.explanation ? `<details class="explain-mo"><summary>💡 Giải thích</summary><div class="explain">${fmt(q.explanation)}</div></details>` : "")
         : `<div class="explain"><div class="small" style="margin-bottom:4px">${q.chosen === null || q.chosen === undefined ? "Em <b>bỏ trống</b> câu này" : `Em chọn: <b class="sai">${LETTERS[q.options.findIndex((o) => o.k === q.chosen)]}. ${fmt(q.options.find((o) => o.k === q.chosen).t)}</b>`}
@@ -740,7 +889,9 @@ async function sReview(id) {
       <label class="check"><input type="checkbox" data-ch="ow" ${onlyWrong ? "checked" : ""}> Chỉ xem câu sai</label>
       ${reviewHtml(d, onlyWrong) || '<div class="empty">Không có câu sai nào. Tuyệt vời!</div>'}`;
   };
-  ACT["ch:ow"] = (el) => { onlyWrong = el.checked; draw(); };
+  ACT["ch:ow"] = (el) => { onlyWrong = el.checked; draw(); Object.keys(d.au || {}).forEach((i) => ngheVe(d, i)); };
+  ngheGanNut(d);
+  cleanup = () => ngheDung(d);
   draw();
 }
 
@@ -1035,6 +1186,8 @@ async function tHome() {
   let ov;
   try { ov = await api("t_overview"); } catch (e) { app.querySelector("main").innerHTML = pageError(e); return; }
   S.ov = ov;
+  datChepLink();
+  const quizOf = (a) => ov.quizzes.find((q) => q.id === a.quiz_id);
   const active = ov.assignments.filter((a) => !a.archived), arch = ov.assignments.filter((a) => a.archived);
   const card = (a) => {
     const pct = a.n_target ? Math.round((a.n_done / a.n_target) * 100) : 0;
@@ -1043,7 +1196,8 @@ async function tHome() {
         <span class="small muted">${esc(a.class_names || "")}</span></div>
       <h3 style="margin:8px 0 4px">${esc(a.title)}</h3>
       <div class="small muted">${a.n_questions} câu${a.time_limit_min ? " · " + a.time_limit_min + " phút" : ""}${a.due_at ? " · Hạn " + fmtDT(a.due_at) + (Date.parse(a.due_at) < Date.now() ? " (đã hết)" : "") : ""}${Date.parse(a.open_at) > Date.now() ? " · Mở lúc " + fmtDT(a.open_at) : ""}</div>
-      <div class="row" style="margin-top:8px;flex-wrap:nowrap"><div class="bar grow"><i style="width:${pct}%"></i></div><span class="small"><b>${a.n_done}</b>/${a.n_target} đã nộp</span></div></a>`;
+      <div class="row" style="margin-top:8px;flex-wrap:nowrap"><div class="bar grow"><i style="width:${pct}%"></i></div><span class="small"><b>${a.n_done}</b>/${a.n_target} đã nộp</span></div>
+      ${a.archived ? "" : linkHtml(linkBai(quizOf(a), a.id))}</a>`;
   };
   let html = `<div class="row between" style="margin-bottom:12px"><h1 style="margin:0">Bài đã giao</h1><a class="btn btn-primary" href="#/t/new">+ Giao bài mới</a></div>`;
   if (!ov.classes.length || !ov.quizzes.length) {
@@ -1055,6 +1209,24 @@ async function tHome() {
   html += active.map(card).join("") || '<div class="empty">Chưa giao bài nào.</div>';
   if (arch.length) html += `<details class="box"><summary>Đã lưu trữ (${arch.length})</summary><div style="margin-top:12px">${arch.map(card).join("")}</div></details>`;
   app.querySelector("main").innerHTML = html;
+}
+
+// Link lam bai de gui nhom lop: de co ma de (tu phan mem cham diem) -> /kiemtra/<ma>; con lai -> link rieng bai giao
+function linkBai(quiz, aid) {
+  const m = quiz && quiz.ma_de;
+  return m && /^[A-Za-z0-9._-]+$/.test(m) ? location.origin + "/kiemtra/" + m.toLowerCase() : location.origin + "/#/start/" + aid;
+}
+function linkHtml(link) {
+  return `<div class="link-bai"><span class="small">🔗 <span class="code">${esc(link.replace(/^https?:\/\//, ""))}</span></span>
+    <button class="btn btn-sm" data-act="chepLink" data-link="${esc(link)}">📋 Chép link</button></div>`;
+}
+function datChepLink() {
+  ACT.chepLink = (el) => {
+    const l = el.dataset.link;
+    const ok = () => toast("Đã chép link — cô dán vào nhóm lớp nhé");
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(l).then(ok, () => prompt("Chép link này:", l));
+    else prompt("Chép link này:", l);
+  };
 }
 
 /* ---------------- giao bai / sua bai giao ---------------- */
@@ -1136,6 +1308,10 @@ async function tResults(id) {
   let R;
   try { R = await api("t_results", { p_id: id }); } catch (e) { app.querySelector("main").innerHTML = pageError(e, "#/t"); return; }
   const A = R.assignment;
+  datChepLink();
+  if (!S.ov) { try { S.ov = await api("t_overview"); } catch (e) { /* bo */ } }
+  const aOv = S.ov && S.ov.assignments.find((x) => x.id === id);
+  const linkA = linkBai(aOv && S.ov.quizzes.find((q) => q.id === aOv.quiz_id), id);
   const classes = [...new Set(R.students.map((s) => s.class_name || "—"))];
   let tab = "students", cls = "", sortQ = false;
   const draw = () => {
@@ -1172,6 +1348,7 @@ async function tResults(id) {
       <div class="row between" style="margin:8px 0 4px"><h1 style="margin:0">${esc(A.title)}</h1>
         <span class="badge ${A.mode === "exam" ? "exam" : "hw"}">${A.mode === "exam" ? "Kiểm tra" : "Bài tập"}</span></div>
       <div class="small muted">${A.n_questions} câu${A.time_limit_min ? " · " + A.time_limit_min + " phút" : ""} · ${A.max_attempts ? A.max_attempts + " lần" : "không giới hạn số lần"}${A.due_at ? " · Hạn " + fmtDT(A.due_at) : ""} · Xem đáp án: ${SHOW_LABEL[A.show_answers]}${A.archived ? " · <b>Đã lưu trữ</b>" : ""}</div>
+      ${A.archived ? "" : linkHtml(linkA)}
       <div class="row no-print" style="margin:12px 0">
         <button class="btn btn-sm" data-act="retry">↻ Làm mới</button>
         <a class="btn btn-sm" href="#/t/a/${id}/edit">⚙ Cài đặt</a>
@@ -1262,9 +1439,12 @@ async function tQuizzes() {
     ${baiThuHtml(ov.quizzes, bt)}
     ${ov.quizzes.map((q) => `<div class="card row between">
       <div class="grow"><b>${esc(q.title)}</b>${q.nguon === "may_cham" ? ` <span class="badge" title="Đăng từ phần mềm chấm điểm">📥 Mã đề ${esc(q.ma_de)}</span>` : ""}${q.nguon === "he_cu" ? ' <span class="badge" title="Chuyển từ hệ ôn tập cũ (Apps Script)">🗂 Hệ cũ</span>' : ""}<div class="small muted">${q.n_questions} câu${q.chuyen_de ? " · " + esc(q.chuyen_de) : ""} · 💡 ${q.n_giai_thich}/${q.n_questions} câu có giải thích · sửa lần cuối ${fmtDT(q.updated_at)}</div></div>
-      <div class="row"><a class="btn btn-sm" href="#/t/q/${q.id}">Sửa</a><a class="btn btn-sm btn-primary" href="#/t/new?quiz=${q.id}">Giao bài</a>
+      ${q.ma_de && /^[A-Za-z0-9._-]+$/.test(q.ma_de) ? linkHtml(linkBai(q, 0)) : ""}
+      <div class="row"><button class="btn btn-sm" data-act="nghe" data-id="${q.id}" data-t="${esc(q.title)}">🎧 Bài nghe${q.n_am_thanh ? " (" + q.n_am_thanh + ")" : ""}</button><a class="btn btn-sm" href="#/t/q/${q.id}">Sửa</a><a class="btn btn-sm btn-primary" href="#/t/new?quiz=${q.id}">Giao bài</a>
       <button class="btn btn-sm btn-danger" data-act="del" data-id="${q.id}" data-t="${esc(q.title)}">Xoá</button></div></div>`).join("") || '<div class="empty">Chưa có đề nào.</div>'}
     <p class="small muted">Sửa đề không ảnh hưởng tới các bài đã giao trước đó (mỗi bài giao giữ bản sao của đề lúc giao) — riêng <b>giải thích</b> được cập nhật luôn cho bài đã giao. Đề «📥 Mã đề» đăng từ phần mềm chấm điểm: đăng lại từ phần mềm sẽ ghi đè phần sửa trên web.</p>`;
+  datChepLink();
+  ACT.nghe = (btn) => tBaiNghe(Number(btn.dataset.id), btn.dataset.t);
   ACT.luuThu = (btn) => {
     const k = btn.dataset.khoi, sel = app.querySelector(`[data-thu-de="${k}"]`), sc = app.querySelector(`[data-thu-so="${k}"]`);
     busy(btn, async () => {
