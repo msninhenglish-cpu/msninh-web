@@ -333,7 +333,7 @@ function moSuaWeb() {
   if (window.tSuaWeb) return tSuaWeb();
   app.innerHTML = tShell("suaweb", spinner());
   const s = document.createElement("script");
-  s.src = "sua_web.js?v=3";
+  s.src = "sua_web.js?v=4";
   s.onload = () => tSuaWeb();
   s.onerror = () => { app.querySelector("main").innerHTML = errBox("Không tải được công cụ. Kiểm tra mạng rồi thử lại."); };
   document.head.appendChild(s);

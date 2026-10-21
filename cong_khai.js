@@ -70,7 +70,7 @@ const GIOI_THIEU = {
 
 // Co so hoc tap (fanpage)
 const CO_SO = {
-  anh: { nho: "anh/co_so_mat_tien_400.webp", lon: "anh/co_so_mat_tien_600.webp", alt: "Mặt tiền Anh ngữ Ms.Ninh, số 433 Cách Mạng Tháng 8, biển hiệu Anh ngữ Ms.Ninh – Học tốt, điểm tốt" },
+  anh: { nho: "anh/co_so_mat_tien_2026_400.webp", lon: "anh/co_so_mat_tien_2026_600.webp", alt: "Mặt tiền Anh ngữ Ms.Ninh, số 433 Cách Mạng Tháng 8, biển hiệu Anh ngữ Ms.Ninh – Học tốt, điểm tốt" },
   y: ["Môi trường học tập thân thiện", "Trang thiết bị học tập đầy đủ, hiện đại"],
 };
 
@@ -111,7 +111,7 @@ const TIEU_CHI = [
 ];
 const CHUONG_TRINH = [
   { id: "tieu-hoc", nhan: "TIỂU HỌC", icon: "smile", mau: "xanh", ten: "Tiểu học", khoi: "Lớp 2 – Lớp 5", gia: "35.000đ", ghi_chu_gia: "≈ 280.000đ/tháng/môn",
-    anh: { nho: "anh/the_tieu_hoc_480.webp", lon: "anh/the_tieu_hoc_800.webp", alt: "Học sinh tiểu học giơ tay phát biểu trong giờ học" },
+    anh: { nho: "anh/lop_tieu_hoc_2026_480.webp", lon: "anh/lop_tieu_hoc_2026_800.webp", alt: "Học sinh tiểu học trong lớp học tại Anh ngữ Ms.Ninh" },
     y: ["Học Phonics", "Nâng cao từ vựng và khả năng giao tiếp", "Bám sát chương trình Bộ GD&ĐT", "Kiểm tra định kỳ hằng ngày, hằng tuần"] },
   { id: "thcs", nhan: "THCS", icon: "book", mau: "tim", ten: "Trung học cơ sở", khoi: "Lớp 6 – Lớp 9", gia: "40.000đ", ghi_chu_gia: "",
     anh: { nho: "anh/the_thcs_480.webp", lon: "anh/the_thcs_800.webp", alt: "Học sinh THCS nhận khen thưởng trước bảng lớp" },
@@ -383,7 +383,7 @@ function danhGiaHtml() {
     <figcaption><span class="pub-stars">${ic("star")}${ic("star")}${ic("star")}${ic("star")}${ic("star")}</span>Học sinh – đánh giá trên Facebook</figcaption></figure>`).join("")}</div>`;
 }
 function coSoHtml() {
-  return `<div class="pub-campus">${anhThe(CO_SO.anh, 400, 339, "(min-width: 760px) 320px, 100vw")}
+  return `<div class="pub-campus">${anhThe(CO_SO.anh, 400, 225, "(min-width: 760px) 320px, 100vw")}
     <div><h3>Cơ sở Sông Công</h3>${lienHeHtml(false)}<ul class="ticks">${CO_SO.y.map((y) => `<li>${ic("check")}${esc(y)}</li>`).join("")}</ul>
     <div class="pub-cta"><a class="btn btn-gold" href="tel:${soDT()}">${ic("phone")} Gọi cô</a><a class="btn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(LIEN_HE.dia_chi)}" target="_blank" rel="noopener">${ic("pin")} Xem bản đồ</a></div></div></div>`;
 }

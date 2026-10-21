@@ -8,9 +8,9 @@ const SW_NHAP = "kt_sua_web_nhap";
 const SW_TRANG = [["trang-chu", "Trang chủ"], ["gioi-thieu", "Giới thiệu"], ["chuong-trinh", "Chương trình học"],
   ["hoat-dong", "Tin tức"], ["thanh-tich", "Thành tích"], ["lien-he", "Liên hệ"], ["dang-ky-tu-van", "Đăng ký tư vấn"], ["kiem-tra-thu", "Kiểm tra thử"]];
 const SW_CHE_DO = [["xem", "👆 Xem", "Bấm link để đi tới các trang như khách"], ["chu", "✏️ Sửa chữ", "Bấm vào chữ để sửa ngay tại chỗ"],
-  ["anh", "🖼 Thay ảnh", "Bấm vào ảnh để chọn ảnh mới"], ["muc", "🧱 Mục", "Bấm vào một mục để ẩn/hiện hoặc đổi thứ tự"],
+  ["anh", "🖼 Thay ảnh", "Bấm vào ảnh để chọn ảnh mới"], ["muc", "🧱 Mục", "Bấm vào một mục (kể cả mục nhỏ: thẻ, dòng, ảnh…) để ẩn/hiện hoặc đổi thứ tự; muốn chọn cả khối lớn thì bấm «⤴ Chọn khối lớn hơn»"],
   ["ghim", "📌 Ghim ý tưởng", "Bấm vào bất kỳ chỗ nào để ghi ý tưởng / dán ảnh mẫu"]];
-const SW_ICON = { chu: "✏️", anh: "🖼", an: "🙈", hien: "👁", thu_tu: "↕️", ghim: "📌" };
+const SW_ICON = { chu: "✏️", anh: "🖼", an: "🙈", hien: "👁", thu_tu: "↕️", ghim: "📌", them_bai: "📰" };
 
 const SW = { trang: "trang-chu", che_do: "xem", kho: "dt", thay_doi: [], ghi_chu_chung: "", anhTam: {}, dangSua: null };
 
@@ -50,7 +50,7 @@ async function tSuaWeb() {
         <div class="row" style="gap:6px"><select class="input sw-sel" id="swTrang">${SW_TRANG.map(([k, t]) => `<option value="${k}">${t}</option>`).join("")}</select>
           <button class="btn btn-sm" data-act="swKho" id="swKho"></button></div>
       </div>
-      <div class="sw-modes" id="swModes"></div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><div class="sw-modes" id="swModes"></div><button class="btn btn-sm btn-gold" data-act="swThemBai">＋ Thêm bài viết (tin tức / thành tích)</button></div>
       <div class="small muted" id="swGoiY"></div>
     </div>
     <div class="sw-wrap">
@@ -64,10 +64,11 @@ async function tSuaWeb() {
   ACT.swMode = (b) => { swDatCheDo(b.dataset.m); };
   ACT.swKho = () => { SW.kho = SW.kho === "dt" ? "mt" : "dt"; swKhung(); };
   ACT.swXoa = (b) => { SW.thay_doi.splice(Number(b.dataset.i), 1); swLuu(); swPanel(); swMoTrang(); };
-  ACT.swDen = (b) => { const t = SW.thay_doi[Number(b.dataset.i)]; if (t.trang !== SW.trang) { SW.trang = t.trang; sel.value = t.trang; swMoTrang(t.chon); } else swCuon(t.chon); };
+  ACT.swDen = (b) => { const t = SW.thay_doi[Number(b.dataset.i)]; if (!t.chon) { SW.trang = t.trang; sel.value = t.trang; swMoTrang(); return; } if (t.trang !== SW.trang) { SW.trang = t.trang; sel.value = t.trang; swMoTrang(t.chon); } else swCuon(t.chon); };
   ACT.swGui = (b) => swGui(b);
   ACT.swXoaHet = () => { if (confirm("Bỏ tất cả thay đổi đang soạn?")) { SW.thay_doi = []; SW.ghi_chu_chung = ""; swLuu(); swPanel(); swMoTrang(); } };
   ACT.swLichSu = () => swLichSu();
+  ACT.swThemBai = () => swThemBai();
   ACT.closeSheet = () => closeSheet();
   ACT.noop = () => {};
   cleanup = () => { closeSheet(); window.removeEventListener("resize", swKhung); };
@@ -181,11 +182,34 @@ function swGanSuKien(d) {
   d.addEventListener("submit", (e) => { if (SW.che_do !== "xem") e.preventDefault(); }, true);
 }
 
+// Khoi nho nhat chua t ma nam trong mot danh sach (cha co >= 2 con): the, dong, anh, doan... Khong co thi ca muc lon.
+function swKhoi(t) {
+  const lon = t.closest("section, header.pub-top, nav.pub-bar, footer");
+  const win = t.ownerDocument.defaultView;
+  for (let n = t; n && n !== lon && n.id !== "app"; n = n.parentElement) {
+    if (n.tagName === "svg" || (n.closest && n.closest("svg"))) continue;
+    const cha = n.parentElement;
+    if (!cha) break;
+    if (/^inline/.test(win.getComputedStyle(n).display) && n.tagName !== "IMG") continue;
+    const r = n.getBoundingClientRect();
+    if (r.width < 40 || r.height < 18) continue;
+    if (cha.children.length >= 2) {
+      const gon = (x) => (x.textContent || "").replace(/\s+/g, " ").trim();
+      while (n.parentElement && n.parentElement !== lon && n.parentElement.id !== "app" && gon(n.parentElement) === gon(n) && !n.matches("img")) n = n.parentElement;
+      return n;
+    }
+  }
+  return lon || null;
+}
+function swChu(el) {
+  const tt = el.ownerDocument.defaultView.getComputedStyle(el).textTransform;
+  return tt && tt !== "none" ? el.textContent.replace(/[ 	]+/g, " ").trim() : el.innerText;
+}
 const SW_THE_CHU = /^(H1|H2|H3|H4|H5|P|LI|SPAN|B|STRONG|SMALL|A|BUTTON|LABEL|TD|TH|BLOCKQUOTE|FIGCAPTION|I|EM|DIV|DT|DD)$/;
 function swChonPhanTu(t) {
   if (!t || !t.closest) return null;
   if (SW.che_do === "anh") return t.closest("img");
-  if (SW.che_do === "muc") return t.closest("section, header.pub-top, nav.pub-bar, footer") || null;
+  if (SW.che_do === "muc") return swKhoi(t);
   if (SW.che_do === "ghim") return t.closest("#app *") || null;
   // sua chu: phan tu nho nhat co chu, khong chua anh / khoi lon
   for (let n = t; n && n.id !== "app"; n = n.parentElement) {
@@ -201,7 +225,7 @@ function swChonPhanTu(t) {
 
 /* ---------- ghi nhan thay doi ---------- */
 function swGhi(td) {
-  const i = SW.thay_doi.findIndex((x) => x.trang === td.trang && x.chon === td.chon && x.loai === td.loai && td.loai !== "ghim" && td.loai !== "thu_tu");
+  const i = SW.thay_doi.findIndex((x) => x.trang === td.trang && x.chon === td.chon && x.loai === td.loai && td.loai !== "ghim" && td.loai !== "thu_tu" && td.loai !== "them_bai");
   if (i >= 0) SW.thay_doi[i] = Object.assign(SW.thay_doi[i], td);
   else SW.thay_doi.push(td);
   swLuu(); swPanel();
@@ -209,7 +233,7 @@ function swGhi(td) {
 
 function swBatDauSua(el) {
   if (SW.dangSua) swXongSua();
-  if (!el.dataset.swCu) { el.dataset.swCu = el.innerText; el.dataset.swViTri = JSON.stringify(swNhan(el)); }
+  if (!el.dataset.swCu) { el.dataset.swCu = swChu(el); el.dataset.swViTri = JSON.stringify(swNhan(el)); }
   el.contentEditable = "true";
   el.classList.add("sw-dang");
   SW.dangSua = el;
@@ -224,7 +248,7 @@ function swXongSua() {
   SW.dangSua = null;
   el.contentEditable = "false";
   el.classList.remove("sw-dang");
-  const cu = el.dataset.swCu, moi = el.innerText;
+  const cu = el.dataset.swCu, moi = swChu(el);
   const chon = swDuongDan(el);
   if (moi.trim() === cu.trim()) {
     const i = SW.thay_doi.findIndex((x) => x.loai === "chu" && x.trang === SW.trang && x.chon === chon);
@@ -285,7 +309,9 @@ function swMenuMuc(el) {
     <p class="small muted">${esc(nhan.chu)}</p>
     <div class="row" style="gap:8px;flex-wrap:wrap">
       <button class="btn" data-act="swAn">${an ? "👁 Hiện lại mục này" : "🙈 Ẩn mục này"}</button>
-      <button class="btn" data-act="swLen">⬆️ Đưa lên trên</button><button class="btn" data-act="swXuong">⬇️ Đưa xuống dưới</button></div>`);
+      <button class="btn" data-act="swLen">⬆️ Đưa lên trên</button><button class="btn" data-act="swXuong">⬇️ Đưa xuống dưới</button></div>
+    ${el.matches("section, header.pub-top, nav.pub-bar, footer") ? "" : '<button class="btn btn-ghost btn-block" style="margin-top:10px" data-act="swLonHon">⤴ Chọn khối lớn hơn (chứa mục này)</button>'}`);
+  ACT.swLonHon = () => { const cha = el.parentElement && swKhoi(el.parentElement); if (cha) { closeSheet(); swMenuMuc(cha); } };
   ACT.swAn = () => {
     closeSheet();
     if (an) { SW.thay_doi = SW.thay_doi.filter((x) => !(x.loai === "an" && x.trang === SW.trang && x.chon === chon)); swLuu(); swPanel(); el.classList.remove("sw-an"); }
@@ -301,6 +327,34 @@ function swMenuMuc(el) {
   };
   ACT.swLen = () => doi(true);
   ACT.swXuong = () => doi(false);
+}
+
+// Them bai viet moi vao trang Tin tuc (hoat dong) hoac Thanh tich: tieu de, ngay, noi dung, toi da 8 anh
+function swThemBai() {
+  let anh = [];
+  const nay = new Date(Date.now() + 7 * 3600e3).toISOString().slice(0, 10);
+  openSheet(`<form data-submit="swLuuBai"><h2 style="margin:0 40px 8px 0">📰 Thêm bài viết</h2>
+    <div class="field"><label class="f">Đăng ở</label><select class="input" name="muc"><option value="hoat_dong" ${SW.trang === "thanh-tich" ? "" : "selected"}>Tin tức / Hoạt động</option><option value="thanh_tich" ${SW.trang === "thanh-tich" ? "selected" : ""}>Thành tích nổi bật</option></select></div>
+    <div class="field"><label class="f">Tiêu đề *</label><input class="input" name="td" maxlength="160" required placeholder="Ví dụ: Học sinh lớp 9 đạt giải Nhì Olympic Tiếng Anh cấp tỉnh"></div>
+    <div class="field"><label class="f">Ngày</label><input class="input" type="date" name="ngay" value="${nay}"></div>
+    <div class="field"><label class="f">Nội dung</label><textarea class="input" name="nd" rows="6" maxlength="4000" placeholder="Viết vài câu kể về hoạt động / thành tích. Có thể ghi tên học sinh nếu phụ huynh đồng ý."></textarea></div>
+    <div class="row" style="gap:8px;margin:8px 0;flex-wrap:wrap"><button type="button" class="btn btn-sm" data-act="swAnhBai">🖼 Thêm ảnh (tối đa 8)</button><span id="swAnhBai" class="row" style="gap:6px;flex-wrap:wrap"></span></div>
+    <button class="btn btn-primary btn-block">Thêm vào phiếu</button>
+    <button type="button" class="btn btn-ghost btn-block" style="margin-top:6px" data-act="closeSheet">Huỷ</button></form>`);
+  ACT.swAnhBai = async (b) => {
+    const files = await swChonFile(true);
+    for (const f of files.slice(0, 8 - anh.length)) {
+      try { b.disabled = true; const a = await swTaiAnh(f); anh.push(a); document.getElementById("swAnhBai").insertAdjacentHTML("beforeend", `<img src="${a.nho}" style="width:56px;height:42px;object-fit:cover;border-radius:6px">`); }
+      catch (er) { toast(er.message, 4000); } finally { b.disabled = false; }
+    }
+  };
+  ACT.swLuuBai = (f) => {
+    const muc = f.muc.value;
+    closeSheet();
+    swGhi({ loai: "them_bai", trang: muc === "thanh_tich" ? "thanh-tich" : "hoat-dong", chon: "", muc_bai: muc, tieu_de: f.td.value.trim(),
+      ngay: f.ngay.value, noi_dung: f.nd.value.trim(), anh_ids: anh.map((a) => a.id), anh_nho: anh.map((a) => a.nho), vi_tri: { muc: "Bài mới", chu: f.td.value.trim() }, kho: SW.kho });
+    toast("Đã thêm bài vào phiếu. Bấm «Gửi yêu cầu cho Claude» khi xong.", 4000);
+  };
 }
 
 function swGhim(el, e) {
@@ -336,7 +390,7 @@ function swApNhap() {
     if (t.trang !== SW.trang) return;
     const el = swTim(d, t.chon);
     if (!el) return;
-    if (t.loai === "chu" && !el.dataset.swCu) { el.dataset.swCu = el.innerText; el.innerText = t.moi; el.classList.add("sw-sua"); }
+    if (t.loai === "chu" && !el.dataset.swCu) { el.dataset.swCu = swChu(el); el.innerText = t.moi; el.classList.add("sw-sua"); }
     else if (t.loai === "anh" && !el.dataset.swCuSrc) { el.dataset.swCuSrc = el.getAttribute("src"); el.removeAttribute("srcset"); el.src = SW.anhTam[t.anh_id] || t.anh_nho; el.classList.add("sw-sua"); }
     else if (t.loai === "an") el.classList.add("sw-an");
     else if (t.loai === "ghim") {
@@ -354,7 +408,8 @@ function swApNhap() {
 function swMoTa(t) {
   if (t.loai === "chu") return `<div class="sw-cu">${esc(t.cu.slice(0, 120))}</div><div>→ <b>${esc(t.moi.slice(0, 200))}</b></div>`;
   if (t.loai === "anh") return `<div>Thay ảnh ${esc(t.vi_tri.chu ? "«" + t.vi_tri.chu + "»" : "")}</div>`;
-  if (t.loai === "an") return `<div>Ẩn mục <b>${esc(t.vi_tri.muc || "")}</b></div>`;
+  if (t.loai === "an") return `<div>Ẩn ${t.vi_tri.chu ? "«" + esc(t.vi_tri.chu.slice(0, 80)) + "»" : "mục"} <span class="small muted">(${esc(t.vi_tri.muc || "")})</span></div>`;
+  if (t.loai === "them_bai") return `<div>Bài mới (${t.muc_bai === "thanh_tich" ? "Thành tích" : "Tin tức / Hoạt động"}): <b>${esc(t.tieu_de)}</b></div>${(t.anh_nho || []).map((x) => `<img src="${x}" alt="">`).join(" ")}`;
   if (t.loai === "thu_tu") return `<div>Đưa mục <b>${esc(t.vi_tri.muc || "")}</b> ${t.huong === "len" ? "lên trên" : "xuống dưới"}</div>`;
   if (t.loai === "ghim") return `<div>${esc(t.noi_dung.slice(0, 220))}</div>${(t.anh_nho || []).map((s) => `<img src="${s}" alt="">`).join(" ")}`;
   return "";
