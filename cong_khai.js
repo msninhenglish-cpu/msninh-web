@@ -41,7 +41,7 @@ const BANNER_ANH = [
 const SO_LIEU = [
   { icon: "cap", so: "2018", chu: "Bắt đầu tại Hà Nội" },
   { icon: "pin", so: "Sông Công 2023", chu: "Chính thức có mặt" },
-  { icon: "laptop", so: "Cổng điện tử Msninh.vn", chu: "Bài tập, kiểm tra, điểm danh, học phí online" },
+  { icon: "laptop", so: "Cổng điện tử Msninh.vn 2026", chu: "Bài tập, kiểm tra, điểm danh, học phí online" },
 ];
 // 4 con so that (fanpage) — khoi Thanh tich
 const SO_LIEU_LON = [
@@ -54,7 +54,7 @@ const SO_LIEU_LON = [
 // Ly do chon (co chot 11/10/2026)
 const LY_DO = [
   { icon: "users", tieu_de: "Chất lượng luôn bảo đảm, cô kèm sát từng em" },
-  { icon: "layers", tieu_de: "Buổi học đủ kỹ năng, học sinh\nđạt chuẩn mới được ra về" },
+  { icon: "layers", tieu_de: "Buổi học đủ kỹ năng, học sinh đạt chuẩn mới được ra về" },
   { icon: "trend", tieu_de: "Cam kết cải thiện điểm số, theo dõi bằng dữ liệu trực quan" },
   { icon: "tag", tieu_de: "Học phí ưu đãi từ 35.000đ/buổi (280.000đ/tháng)" },
 ];
@@ -106,7 +106,7 @@ const GIAO_VIEN = [
 // Chuong trinh hoc (bai tuyen sinh 2026–2027 + co chot gia)
 const TIEU_CHI = [
   "Nội dung bám sát chương trình học – luyện thi chuẩn của Bộ GD&ĐT",
-  "Kiểm tra định kỳ hằng ngày, hằng tuần",
+  "Kiểm tra định kỳ hằng ngày, hằng tuần; giao bài tập về nhà online",
   "Chương trình bồi dưỡng riêng cho học sinh mới, học sinh mất gốc",
 ];
 const CHUONG_TRINH = [
@@ -147,6 +147,10 @@ const HOAT_DONG = [
       { nho: "anh/hd_mua_diem_tot_480.webp", lon: "anh/hd_mua_diem_tot_800.webp", alt: "Niềm vui khi đạt điểm tốt – quà nhỏ, động lực lớn" },
     ] },
   { tieu_de: "Khai giảng lớp hè 2025", ngay: "2025-06-08", mo_ta: "Khai giảng lớp hè cho học sinh cấp 1 và cấp 2.", anh: [] },
+  { tieu_de: "Khai trương trung tâm Anh ngữ Ms.Ninh lần đầu tiên tại thành phố Sông Công, tỉnh Thái Nguyên", ngay: "2023-01-27",
+    tom_tat: "Tháng 01/2023, Anh ngữ Ms.Ninh khai trương cơ sở đầu tiên tại Sông Công. Cơ sở vật chất còn hạn chế nhưng cô trò vẫn hăng say học tập.",
+    mo_ta: "ANH NGỮ MS.NINH – NHÌN LẠI NHỮNG NGÀY ĐẦU TẠI SÔNG CÔNG\n\nTháng 01/2023, Anh ngữ Ms.Ninh chính thức khai trương cơ sở đầu tiên tại thành phố Sông Công, tỉnh Thái Nguyên.\n\nNhững ngày đầu, cơ sở vật chất của trung tâm còn nhiều hạn chế. Phòng học nhỏ, trang thiết bị chưa đầy đủ, học liệu phần lớn do giáo viên tự biên soạn và chuẩn bị. Dù vậy, trung tâm vẫn duy trì đều đặn từng buổi học với tinh thần nghiêm túc và trách nhiệm.\n\nNhững học sinh đầu tiên đến với trung tâm khi nền tảng tiếng Anh còn khác nhau: có em mới làm quen với môn học, có em còn chưa tự tin khi giao tiếp. Qua quá trình học tập chuyên cần, các em dần tiến bộ về từ vựng, ngữ pháp và khả năng sử dụng tiếng Anh. Tinh thần học tập chăm chỉ của học sinh, cùng sự tận tâm của giáo viên, đã trở thành nền móng đầu tiên của Anh ngữ Ms.Ninh.\n\nTrung tâm trân trọng cảm ơn quý phụ huynh đã tin tưởng gửi gắm con em ngay từ những ngày đầu thành lập. Sự tin tưởng đó là động lực để Anh ngữ Ms.Ninh không ngừng hoàn thiện cơ sở vật chất, nâng cao chất lượng giảng dạy và đồng hành lâu dài cùng các em học sinh trên con đường chinh phục tiếng Anh.\n\nAnh ngữ Ms.Ninh – Học tốt, điểm tốt.\n📍 Thành phố Sông Công, tỉnh Thái Nguyên",
+    anh: [{ nho: "anh/hd_khai_truong_2023_480.webp", lon: "anh/hd_khai_truong_2023_800.webp", alt: "Những ngày đầu của Anh ngữ Ms.Ninh tại Sông Công, tháng 01/2023" }] },
 ];
 
 // Thanh tich (fanpage, cong khai). Anh dau = anh dai dien.
@@ -329,7 +333,7 @@ function hoatDongThe(h) {
   const a = (h.anh || [])[0];
   return `<article class="pub-news"><div class="pub-news-pic">${a ? anhThe(a, 480, 360, SIZES_THE) : `<div class="pub-news-img">${ic("camera")}</div>`}
       ${(h.anh || []).length > 1 ? `<span class="pub-more">+${h.anh.length - 1} ảnh</span>` : ""}</div>
-    <div class="pub-news-body">${h.ngay ? `<span class="pub-date">${esc(ngayVNs(h.ngay))}</span>` : ""}<b>${esc(h.tieu_de)}</b>${h.mo_ta ? `<p>${esc(h.mo_ta)}</p>` : ""}</div></article>`;
+    <div class="pub-news-body">${h.ngay ? `<span class="pub-date">${esc(ngayVNs(h.ngay))}</span>` : ""}<b>${esc(h.tieu_de)}</b>${h.tom_tat || h.mo_ta ? `<p>${esc(h.tom_tat || h.mo_ta)}</p>` : ""}</div></article>`;
 }
 function hoatDongLuoi(gioi_han) {
   const ds = gioi_han ? HOAT_DONG.slice(0, gioi_han) : HOAT_DONG;
@@ -475,7 +479,7 @@ function pubActivities() {
   pubShell("hoat-dong", "Tin tức & Hoạt động", `${pubHead("Tin tức & Hoạt động", "Quà nhỏ – động lực lớn. Một đứa trẻ hạnh phúc sẽ học tốt hơn bất kỳ phương pháp nào.")}
     <section class="pub-in sec">${HOAT_DONG.map((h) => `<article class="card pub-post">
         <div class="pub-post-hd">${h.ngay ? `<span class="pub-date">${esc(ngayVNs(h.ngay))}</span>` : ""}<h2>${esc(h.tieu_de)}</h2></div>
-        ${h.mo_ta ? `<p>${esc(h.mo_ta)}</p>` : ""}
+        ${h.mo_ta ? h.mo_ta.split(/\n\s*\n/).map((d) => `<p>${esc(d).replace(/\n/g, "<br>")}</p>`).join("") : ""}
         ${(h.anh || []).length ? `<div class="pub-gallery">${h.anh.map((a) => anhThe(a, 480, 360, "(min-width: 960px) 260px, 50vw")).join("")}</div>` : ""}</article>`).join("")
       || '<div class="empty">Sắp có tin mới.</div>'}
       <p class="center"><a class="btn" href="${esc(LIEN_HE.facebook)}" target="_blank" rel="noopener">${ic("fb")} Xem thêm trên fanpage</a></p></section>`);
