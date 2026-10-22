@@ -515,8 +515,9 @@ table.t tr.row-ok td { background: #f2fbf6; }
 .sap-co { color: #9a4600; }
 
 /* banner co anh that: chia doi (anh phai, chu trai) — 11/10/2026 */
-.bn-split { display: grid; grid-template-columns: 42% 58%; min-height: 470px; }
-.bn-col { order: 1; display: flex; align-items: center; }
+.bn-split { display: grid; grid-template-columns: minmax(0, 46%) minmax(0, 54%); min-height: 470px; }
+.bn-col { order: 1; display: flex; align-items: center; min-width: 0; }
+.bn-col > .bn-text { width: 100%; min-width: 0; box-sizing: border-box; }
 .bn-pics { order: 2; position: relative; overflow: hidden; }
 .bn-photo .bn-text { padding: 40px 28px 86px max(16px, calc((100vw - 1140px) / 2 + 16px)); }
 .bn-photo h1 { font-size: clamp(36px, 3.4vw, 50px); }
@@ -647,8 +648,23 @@ mark.cho-dang { background: #ffe066; color: inherit; padding: 1px 4px; border-ra
 .bn-slogan { font-size: 26px; font-weight: 800; letter-spacing: .6px; text-transform: uppercase; color: #ffd34d; margin: -4px 0 14px; }
 @media (max-width: 760px) { .bn-slogan { font-size: 20px; } }
 
-/* phieu YC-62176101698C56585D33: o "he thong du lieu dien tu" trai rong 1 hang, chu can doi */
-.bn-stats .bn-stat-rong { flex: 1 1 100%; max-width: 560px; text-align: left; }
-.bn-stats .bn-stat-rong b { font-size: 15.5px; line-height: 1.35; }
-.bn-stats .bn-stat-rong small { font-size: 13px; line-height: 1.45; }
-@media (max-width: 760px) { .bn-stats .bn-stat-rong b { font-size: 14px; } .bn-stats .bn-stat-rong small { font-size: 12px; } }
+/* Khoi dau trang chu: 3 o so lieu + 2 nut CUNG KICH THUOC (22/10/2026, co gop y) */
+.bn-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; max-width: 560px; margin-bottom: 22px; }
+.bn-stats > div { display: flex; flex-direction: column; align-items: center; justify-content: flex-start; text-align: center; gap: 4px; padding: 14px 10px; min-height: 118px; box-sizing: border-box; }
+.bn-stats .ic { width: 30px; height: 30px; flex: none; margin-bottom: 4px; grid-row: auto; }
+.bn-stats b { font-size: 15.5px; line-height: 1.3; }
+.bn-stats small { font-size: 12.5px; line-height: 1.4; }
+.bn-cta { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 10px; max-width: 560px; }
+.bn-cta .btn { display: flex; align-items: center; justify-content: center; gap: 6px; min-height: 56px; padding: 10px 8px; font-size: 15px; white-space: nowrap; margin: 0; box-sizing: border-box; min-width: 0; letter-spacing: -.1px; }
+.bn-cta .btn .ic { width: 18px; height: 18px; flex: none; }
+@media (max-width: 760px) {
+  .bn-stats, .bn-cta { margin-left: auto; margin-right: auto; }
+  .bn-stats > div { padding: 12px 8px; } .bn-stats b { font-size: 14px; } .bn-stats small { font-size: 11.5px; }
+}
+@media (max-width: 560px) {
+  .bn-stats { grid-template-columns: 1fr; }
+  .bn-stats > div { display: grid; grid-template-columns: 34px 1fr; column-gap: 12px; align-items: center; justify-items: start; text-align: left; min-height: 64px; padding: 10px 14px; }
+  .bn-stats .ic { grid-row: span 2; margin: 0; width: 30px; height: 30px; }
+  .bn-stats b { font-size: 15px; } .bn-stats small { font-size: 12.5px; }
+  .bn-cta { grid-template-columns: 1fr; } .bn .pub-cta.bn-cta .btn { flex: none; width: 100%; }
+}
