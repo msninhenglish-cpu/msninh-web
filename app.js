@@ -215,6 +215,7 @@ async function route() {
     }
     taiThuVien().catch(() => {}); // tai truoc trong luc ve trang
     if (p[0] === "setup") return viewSetup();
+    if (p[0] === "vao-nhanh") return viewVaoNhanh();
     if (!S.token || !S.user) return p[0] === "login" ? viewLogin() : viewLanding();
     if (S.user.role === "teacher") {
       if (p[0] !== "t") return go("#/t");
@@ -239,7 +240,9 @@ async function route() {
         default: return go("#/t");
       }
     }
-    if (S.user.default_password) return viewDoiMk();
+    // Phien «vao nhanh»: chi trang bai duoc lam, lam bai, ket qua vua nop
+    if (S.user.vao_nhanh && !["start", "quiz", "result", "kiemtra"].includes(p[0])) return nhanhHome();
+    if (S.user.default_password && !S.user.vao_nhanh) return viewDoiMk();
     switch (p[0]) {
       case undefined: return sHome();
       case "start": return sStart(+p[1]);
@@ -287,6 +290,11 @@ function sShell(tab, inner, opts) {
   opts = opts || {};
   const u = S.user || {};
   const nav = [["home", "#/", "📝 Bài tập"], ["results", "#/results", "🏆 Kết quả"], ["tienbo", "#/tien-bo", "📈 Tiến bộ"], ["diemdanh", "#/diem-danh", "📅 Điểm danh"], ["hocphi", "#/hoc-phi", "💰 Học phí"], ["nhanxet", "#/nhan-xet", "📝 Nhận xét"], ["account", "#/account", "👤 Tài khoản"]];
+  if (u.vao_nhanh) {
+    return `<div class="page">${topbar('<button class="btn btn-sm" data-act="logout">Thoát</button>')}
+    <div class="whoami">⚡ <b>${esc(u.name || "")}</b>${u.class_name ? " · " + esc(u.class_name) : ""} <span class="badge gold">Vào nhanh</span></div>
+    ${opts.left || ""}<main>${inner}</main></div>`;
+  }
   return `<div class="page">${topbar(opts.right)}
     <div class="whoami">👋 <b>${esc(u.name || "")}</b>${u.class_name ? " · " + (/^(lớp|khối)/i.test(u.class_name) ? "" : "lớp ") + esc(u.class_name) : ""} · mã <span class="code">${esc(u.code || "")}</span></div>
     <div class="tabs grid3">${nav.map((n) => `<a href="${n[1]}" class="${n[0] === tab ? "on" : ""}">${n[2]}</a>`).join("")}</div>
@@ -376,6 +384,8 @@ function viewLogin() {
         <div class="small muted" style="margin-top:6px">Lần đầu: dùng mật khẩu trên phiếu cô phát, sau đó đặt mật khẩu mới.</div></div>
       <button class="btn btn-primary btn-block btn-lg" id="loginBtn">Đăng nhập</button>
       <p class="muted small center" style="margin:12px 0 0">Quên mật khẩu? Hãy nhờ cô đặt lại. · <a href="#/trang-chu">Trang chủ</a></p>
+      <a class="btn btn-gold btn-block btn-lg" href="#/vao-nhanh" style="margin-top:14px">⚡ Vào làm bài nhanh</a>
+      <p class="muted small center" style="margin:6px 0 0">Không cần mật khẩu — chỉ dùng được với bài cô cho phép.</p>
     </form>
   </div></div>`;
   S.flash = null;
@@ -507,6 +517,78 @@ function asgCard(a) {
     <div class="small muted">${asgMeta(a)}</div></div>`;
 }
 
+// ---------- Vao lam bai nhanh (khong mat khau): chon lop + go ten -> chon ten; hoac go ma -> «Dung la em»
+function viewVaoNhanh() {
+  let kieu = "ten", chon = null;
+  const ve = () => {
+    app.innerHTML = `<div class="center-screen"><div class="login-box"><div class="card">
+      ${brandBig("⚡ Vào làm bài nhanh")}
+      <p class="small muted center" style="margin-top:0">Không cần mật khẩu. Em chỉ làm được bài cô cho phép vào nhanh.</p>
+      <div class="seg" style="margin-bottom:12px"><button type="button" class="seg-b ${kieu === "ten" ? "on" : ""}" data-act="vnKieu" data-k="ten">🙋 Bằng tên</button><button type="button" class="seg-b ${kieu === "ma" ? "on" : ""}" data-act="vnKieu" data-k="ma">🔢 Bằng mã số</button></div>
+      <div id="err"></div>
+      ${kieu === "ten" ? `<form data-submit="vnTim">
+        <div class="field"><label class="f" for="lop">Lớp của em</label><select class="input" id="lop" name="lop" required><option value="">Đang tải…</option></select></div>
+        <div class="field"><label class="f" for="ten">Gõ tên của em (ít nhất 2 chữ)</label><input class="input" id="ten" name="ten" maxlength="40" autocomplete="off" placeholder="Ví dụ: Lan" required></div>
+        <button class="btn btn-primary btn-block btn-lg" id="vnBtn">🔍 Tìm tên em</button></form>`
+      : `<form data-submit="vnMa">
+        <div class="field"><label class="f" for="ma">Mã học sinh</label><input class="input" id="ma" name="ma" inputmode="numeric" maxlength="20" autocomplete="off" placeholder="Ví dụ: 057" required></div>
+        <button class="btn btn-primary btn-block btn-lg" id="vnBtn">Tiếp →</button></form>`}
+      <div id="vnKq" style="margin-top:12px"></div>
+      <p class="muted small center" style="margin:12px 0 0"><a href="#/login">← Đăng nhập bằng mật khẩu</a></p>
+    </div></div></div>`;
+    if (kieu === "ten") {
+      api("public_nhanh_ds_lop", {}, false).then((ds) => {
+        const sel = document.getElementById("lop"); if (!sel) return;
+        if (!ds.length) { document.getElementById("vnKq").innerHTML = '<div class="alert alert-warn">Hiện chưa có bài nào cho vào nhanh. Em đăng nhập bằng mã và mật khẩu nhé.</div>'; sel.innerHTML = '<option value="">(chưa có lớp)</option>'; return; }
+        let nho = ""; try { nho = localStorage.getItem("kt_dn_lop") || ""; } catch (e) { /* bo */ }
+        sel.innerHTML = '<option value="">— Chọn lớp —</option>' + ds.map((c) => `<option value="${c.id}" ${String(c.id) === nho ? "selected" : ""}>${esc(c.name)}</option>`).join("");
+      }, (e) => { document.getElementById("err").innerHTML = errBox(e); });
+    }
+  };
+  const xacNhan = (x) => {
+    chon = x;
+    document.getElementById("vnKq").innerHTML = `<div class="card" style="background:#fff8e1;text-align:center">
+      <div>Em là</div><div style="font-size:22px;font-weight:800;margin:4px 0">${esc(x.ten)}</div>${x.lop ? `<div class="small muted">${esc(x.lop)}</div>` : ""}
+      <button class="btn btn-gold btn-block btn-lg" style="margin-top:10px" data-act="vnVao">✅ Đúng là em — vào làm bài</button>
+      <button class="btn btn-ghost btn-block" data-act="vnKhong">Không phải em</button></div>`;
+  };
+  ACT.vnKieu = (b) => { kieu = b.dataset.k; ve(); };
+  ACT.vnTim = (f) => busy(document.getElementById("vnBtn"), async () => {
+    const kq = document.getElementById("vnKq"); document.getElementById("err").innerHTML = "";
+    try {
+      try { localStorage.setItem("kt_dn_lop", f.lop.value); } catch (e) { /* bo */ }
+      const r = await api("public_nhanh_tim_ten", { p_lop_id: Number(f.lop.value), p_chu: f.ten.value }, false);
+      kq.innerHTML = r.ds.length ? `<p class="small muted" style="margin:0 0 6px">Bấm vào tên của em:</p>${r.ds.map((x, i) => `<button class="btn btn-block" style="margin-bottom:6px" data-act="vnChon" data-i="${i}">🙋 ${esc(x.ten)}</button>`).join("")}`
+        : '<div class="alert alert-warn">Không thấy tên nào. Em kiểm tra lại lớp và tên (gõ đúng vài chữ trong tên).</div>';
+      ACT.vnChon = (b) => xacNhan(Object.assign({ lop: f.lop.selectedOptions[0].textContent }, r.ds[Number(b.dataset.i)]));
+    } catch (e) { document.getElementById("err").innerHTML = errBox(e); }
+  });
+  ACT.vnMa = (f) => busy(document.getElementById("vnBtn"), async () => {
+    document.getElementById("err").innerHTML = "";
+    try { xacNhan(await api("public_nhanh_tim_ma", { p_ma: f.ma.value }, false)); } catch (e) { document.getElementById("err").innerHTML = errBox(e); document.getElementById("vnKq").innerHTML = ""; }
+  });
+  ACT.vnKhong = () => { chon = null; document.getElementById("vnKq").innerHTML = ""; };
+  ACT.vnVao = (b) => busy(b, async () => {
+    try {
+      const r = await api("vao_nhanh", { p_ma: chon.ma }, false);
+      setSession(r.token, r.user);
+      go(sauDangNhap());
+    } catch (e) { document.getElementById("err").innerHTML = errBox(e); }
+  });
+  ve();
+}
+// Trang chu cua phien vao nhanh: chi cac bai cho vao nhanh
+async function nhanhHome() {
+  app.innerHTML = sShell("home", spinner());
+  ACT.retry = () => route();
+  ACT.open = (el) => go("#/start/" + el.dataset.id);
+  let d;
+  try { d = await api("nhanh_ds_bai"); } catch (e) { app.querySelector("main").innerHTML = pageError(e); return; }
+  S.home = d.assignments;
+  app.querySelector("main").innerHTML = `<div class="alert alert-ok">⚡ Em đang <b>vào nhanh</b>: chỉ làm được bài cô cho phép. Muốn xem điểm, học phí… em đăng nhập bằng mã và mật khẩu.</div>
+    ${d.assignments.length ? `<div class="section-title">Bài em làm được (${d.assignments.length})</div>${d.assignments.map(asgCard).join("")}`
+      : '<div class="empty">Hiện không còn bài nào cho vào nhanh.</div>'}`;
+}
 async function sHome() {
   const refresh = '<button class="btn btn-sm" data-act="refresh" title="Tải lại" aria-label="Tải lại" style="font-size:18px">↻</button>';
   app.innerHTML = sShell("home", spinner(), { right: refresh });
@@ -552,10 +634,10 @@ async function sStart(aid) {
   ACT.retry = () => route();
   let a, past;
   try {
-    if (!S.home) S.home = (await api("student_home")).assignments;
+    if (!S.home) S.home = (await api(S.user.vao_nhanh ? "nhanh_ds_bai" : "student_home")).assignments;
     a = S.home.find((x) => x.id === aid);
-    if (!a) throw new Error("Không tìm thấy bài này.");
-    past = (await api("my_results")).filter((r) => r.assignment_id === aid);
+    if (!a) throw new Error(S.user.vao_nhanh ? "Bài này không cho vào nhanh. Em đăng nhập bằng mã và mật khẩu để làm nhé." : "Không tìm thấy bài này.");
+    past = S.user.vao_nhanh ? [] : (await api("my_results")).filter((r) => r.assignment_id === aid);
   } catch (e) { app.querySelector("main").innerHTML = pageError(e, "#/"); return; }
   const left = a.max_attempts ? a.max_attempts - (a.used || 0) : null;
   const canStart = a.doing_id || (!a.closed && (left === null || left > 0));
@@ -954,6 +1036,7 @@ function sResult() {
     ${r.can_review ? `<a class="btn btn-primary btn-block btn-lg" href="#/review/${r.attempt_id}">📖 Xem lại bài làm ➜</a>`
       : r.xem_mot_phan ? `<a class="btn btn-primary btn-block btn-lg" href="#/review/${r.attempt_id}">📖 Xem các câu em làm đúng ➜</a>
         <p class="small muted center" style="margin:6px 0 0">Đáp án đầy đủ cô mở sau hạn nộp${r.han ? " (" + fmtDT(r.han) + ")" : ""}.</p>`
+      : r.vao_nhanh ? '<div class="alert alert-ok">Em đã nộp bài ✔ Muốn xem lại bài làm, em đăng nhập bằng mã và mật khẩu nhé.</div>'
       : '<div class="alert alert-ok">Cô sẽ mở đáp án sau. Em xem lại ở mục <b>📊 Kết quả</b> nhé.</div>'}
     ${r.can_retry ? `<a class="btn btn-block btn-lg" href="#/start/${r.assignment_id}" style="margin-top:12px">${r.on_tung_cau ? "🔁 Làm lại — ôn từng câu" : "🔁 Làm lại"}</a>` : ""}
     <a class="btn btn-ghost btn-block" href="#/" style="margin-top:12px">Về trang chủ</a>`);
@@ -1302,7 +1385,7 @@ async function tHome() {
     return `<a class="card tap" href="#/t/a/${a.id}" style="display:block;text-decoration:none;color:inherit">
       <div class="row between"><span class="badge ${a.mode === "exam" ? "exam" : "hw"}">${a.mode === "exam" ? "Kiểm tra" : "Bài tập"}</span>
         <span class="small muted">${esc(a.class_names || "")}</span></div>
-      <h3 style="margin:8px 0 4px">${esc(a.title)}</h3>
+      <h3 style="margin:8px 0 4px">${esc(a.title)}${a.vao_nhanh ? ' <span class="badge gold" title="Cho vào nhanh không mật khẩu">⚡ Vào nhanh</span>' : ""}</h3>
       <div class="small muted">${a.n_questions} câu${a.time_limit_min ? " · " + a.time_limit_min + " phút" : ""}${a.due_at ? " · Hạn " + fmtDT(a.due_at) + (Date.parse(a.due_at) < Date.now() ? " (đã hết)" : "") : ""}${Date.parse(a.open_at) > Date.now() ? " · Mở lúc " + fmtDT(a.open_at) : ""}</div>
       <div class="row" style="margin-top:8px;flex-wrap:nowrap"><div class="bar grow"><i style="width:${pct}%"></i></div><span class="small"><b>${a.n_done}</b>/${a.n_target} đã nộp</span></div>
       ${a.archived ? "" : linkHtml(linkBai(quizOf(a), a.id))}</a>`;
@@ -1372,6 +1455,7 @@ async function tAssignForm(id, quizId) {
           <option value="co" ${v.max_attempts !== 1 && !v.on_tung_cau ? "selected" : ""}>Có — làm lại cả bài như lần đầu</option></select></div>
         <div class="field" id="attBox"><label class="f">Số lần được làm tối đa (0 = không giới hạn)</label><input class="input" type="number" min="0" max="50" name="att" value="${v.max_attempts && v.max_attempts !== 1 ? v.max_attempts : 0}"></div>
       </div>
+      <label class="check" style="margin:4px 0 10px"><input type="checkbox" name="nhanh" ${v.vao_nhanh ? "checked" : ""}> ⚡ <b>Cho vào nhanh không mật khẩu</b> <span class="small muted">— học sinh chọn lớp + tên (hoặc gõ mã) là vào làm, không cần đăng nhập. Bài làm sẽ có dấu ⚡.</span></label>
       <div class="field"><label class="f">Xem kết quả &amp; đáp án</label><select class="input" name="show">
         ${Object.entries(SHOW_LABEL).map(([k, t]) => `<option value="${k}" ${v.show_answers === k ? "selected" : ""}>${t}</option>`).join("")}</select>
         <div class="small muted">«Sau hạn»: trước hạn em chỉ xem được các câu làm đúng (kèm giải thích), câu sai chưa lộ đáp án.</div></div>
@@ -1399,6 +1483,7 @@ async function tAssignForm(id, quizId) {
       time_limit_min: Number(form.time.value) || 0,
       max_attempts: form.lamlai.value === "khong" ? 1 : (Number(form.att.value) === 1 ? 2 : Number(form.att.value) || 0),
       on_tung_cau: form.lamlai.value === "on",
+      vao_nhanh: form.nhanh.checked,
       show_answers: form.show.value,
     };
     try {
@@ -1427,6 +1512,11 @@ async function tResults(id) {
   try { R = await api("t_results", { p_id: id }); } catch (e) { app.querySelector("main").innerHTML = pageError(e, "#/t"); return; }
   const A = R.assignment;
   datChepLink();
+  ACT["ch:vaoNhanh"] = async (el) => {
+    const bat = el.checked;
+    if (bat && !confirm("Cho học sinh vào làm bài này KHÔNG cần mật khẩu (chọn tên hoặc gõ mã)?\nBài làm bằng cách này sẽ có dấu ⚡.")) { el.checked = false; return; }
+    try { await api("t_update_assignment", { p_id: id, p: { vao_nhanh: bat } }); S.ov = null; toast(bat ? "Đã bật vào nhanh" : "Đã tắt vào nhanh"); } catch (e) { el.checked = !bat; toast(e.message, 4000); }
+  };
   if (!S.ov) { try { S.ov = await api("t_overview"); } catch (e) { /* bo */ } }
   const aOv = S.ov && S.ov.assignments.find((x) => x.id === id);
   const linkA = linkBai(aOv && S.ov.quizzes.find((q) => q.id === aOv.quiz_id), id);
@@ -1441,7 +1531,7 @@ async function tResults(id) {
     if (tab === "students") {
       body = `<div class="table-wrap"><table class="t"><thead><tr><th>#</th><th>Mã</th><th>Họ tên</th><th>Lớp</th><th>Điểm cao nhất</th><th>Lần làm</th><th>Nộp gần nhất</th>${A.mode === "exam" ? "<th>Rời trang</th>" : ""}</tr></thead><tbody>
         ${list.map((s, i) => `<tr class="click" data-act="stu" data-id="${s.id}">
-          <td>${i + 1}</td><td>${esc(s.code)}</td><td class="wrap">${esc(s.name)}</td><td>${esc(s.class_name || "")}</td>
+          <td>${i + 1}</td><td>${esc(s.code)}</td><td class="wrap">${esc(s.name)}${s.vao_nhanh ? ' <span title="Có lần làm bằng «vào nhanh» không mật khẩu">⚡</span>' : ""}</td><td>${esc(s.class_name || "")}</td>
           <td>${s.used ? `<span class="score ${scoreCls(s.best)}" style="font-size:16px">${fmtScore(s.best)}</span>` : s.doing ? '<span class="badge gold">Đang làm</span>' : '<span class="badge">Chưa nộp</span>'}</td>
           <td>${s.used || 0}${s.doing && s.used ? " <span class='faint small'>(+1 đang làm)</span>" : ""}</td>
           <td class="small">${s.last_at ? fmtDT(s.last_at) : ""}</td>
@@ -1467,6 +1557,8 @@ async function tResults(id) {
         <span class="badge ${A.mode === "exam" ? "exam" : "hw"}">${A.mode === "exam" ? "Kiểm tra" : "Bài tập"}</span></div>
       <div class="small muted">${A.n_questions} câu${A.time_limit_min ? " · " + A.time_limit_min + " phút" : ""} · ${A.max_attempts ? A.max_attempts + " lần" : "không giới hạn số lần"}${A.due_at ? " · Hạn " + fmtDT(A.due_at) : ""} · Xem đáp án: ${SHOW_LABEL[A.show_answers]}${A.archived ? " · <b>Đã lưu trữ</b>" : ""}</div>
       ${A.archived ? "" : linkHtml(linkA)}
+      ${A.archived ? "" : `<label class="check small" style="margin-top:8px"><input type="checkbox" data-ch="vaoNhanh" ${aOv && aOv.vao_nhanh ? "checked" : ""}> ⚡ Cho vào nhanh không mật khẩu</label>`}
+      ${R.students.some((x) => x.vao_nhanh) ? '<p class="small muted">⚡ = có lần làm bằng «vào nhanh» (không mật khẩu) — cô để ý nếu nghi làm hộ.</p>' : ""}
       <div class="row no-print" style="margin:12px 0">
         <button class="btn btn-sm" data-act="retry">↻ Làm mới</button>
         <a class="btn btn-sm" href="#/t/a/${id}/edit">⚙ Cài đặt</a>
@@ -1502,7 +1594,7 @@ async function tResults(id) {
       const list = await api("t_student_attempts", { p_user_id: s.id, p_assignment_id: id });
       openSheet(`<div class="row between"><h2 style="margin:0">${esc(s.name)}</h2><button class="icon-btn" data-act="closeSheet">✕</button></div>
         <p class="small muted">Mã ${esc(s.code)} · Lớp ${esc(s.class_name || "")}</p>
-        ${list.map((t, i) => `<div class="card"><div class="row between"><b>Lần ${list.length - i}</b>${t.submitted_at ? `<span class="score ${scoreCls(t.score)}">${fmtScore(t.score)}</span>` : '<span class="badge gold">Đang làm</span>'}</div>
+        ${list.map((t, i) => `<div class="card"><div class="row between"><b>Lần ${list.length - i}${t.vao_nhanh ? ' <span class="badge gold" title="Làm bằng «vào nhanh» không mật khẩu">⚡ Vào nhanh</span>' : ""}</b>${t.submitted_at ? `<span class="score ${scoreCls(t.score)}">${fmtScore(t.score)}</span>` : '<span class="badge gold">Đang làm</span>'}</div>
           <div class="small muted">Bắt đầu ${fmtDT(t.started_at)}${t.submitted_at ? " · nộp " + fmtDT(t.submitted_at) + " · đúng " + t.correct_count + "/" + t.total : ""}${A.mode === "exam" ? " · rời trang " + t.leave_count + " lần" : ""}</div>
           <div class="row" style="margin-top:8px">${t.submitted_at ? `<a class="btn btn-sm" href="#/t/at/${t.id}">Xem bài làm</a>` : ""}
           <button class="btn btn-sm btn-danger" data-act="delat" data-id="${t.id}">Xoá lần này (cho làm lại)</button></div></div>`).join("") || '<div class="empty">Học sinh chưa làm bài này.</div>'}`);
