@@ -371,18 +371,22 @@ function viewLogin() {
       ${notSet ? '<div class="alert alert-warn">Trang web chưa được kết nối máy chủ (chưa điền <b>config.js</b>).</div>' : ""}
       <div id="err">${S.flash ? `<div class="alert alert-warn">${esc(S.flash)}</div>` : ""}</div>
       <div class="seg" role="tablist" style="margin-bottom:12px"><button type="button" class="seg-b ${S.dnTen ? "" : "on"}" data-act="dnKieu" data-k="ma">🔢 Bằng mã số</button><button type="button" class="seg-b ${S.dnTen ? "on" : ""}" data-act="dnKieu" data-k="ten">🙋 Bằng họ tên</button></div>
-      ${S.dnTen ? `<div class="field"><label class="f" for="lop">Lớp của em</label>
-        <select class="input" id="lop" name="lop" required><option value="">Đang tải danh sách lớp…</option></select></div>
-      <div class="field"><label class="f" for="ten">Họ và tên đầy đủ</label>
-        <input class="input" id="ten" name="ten" placeholder="Ví dụ: Nguyễn Thị Lan" autocomplete="name" maxlength="80" required>
-        <div class="small muted" style="margin-top:6px">Gõ có dấu hay không dấu đều được.</div></div>`
+      ${S.dnTen ? (S.dnChon ? `<div class="card" style="background:#f3f6ff;text-align:center;margin-bottom:10px"><div class="small muted">Em là</div>
+          <div style="font-size:20px;font-weight:800">${esc(S.dnChon.ten)}</div><div class="small muted">${esc(S.dnChon.lop || "")}</div>
+          <button type="button" class="btn btn-sm btn-ghost" data-act="dnDoi">Không phải em? Chọn lại</button></div>`
+        : `<div class="field"><label class="f" for="lop">Lớp của em</label>
+        <select class="input" id="lop" name="lop"><option value="">Đang tải danh sách lớp…</option></select></div>
+      <div class="field"><label class="f" for="ten">Gõ tên của em (ít nhất 2 chữ)</label>
+        <div class="pwrow"><input class="input" id="ten" name="ten" placeholder="Ví dụ: Lan" autocomplete="off" maxlength="40">
+        <button type="button" class="btn btn-primary" data-act="dnTim" id="dnTimBtn">🔍 Tìm</button></div></div>
+      <div id="dnKq"></div>`)
       : `<div class="field"><label class="f" for="code">Mã học sinh</label>
         <input class="input" id="code" name="code" placeholder="Ví dụ: 057" autocomplete="username" autocapitalize="off" autocorrect="off" spellcheck="false" required></div>`}
-      <div class="field"><label class="f" for="pw">Mật khẩu</label>
+      ${S.dnTen && !S.dnChon ? "" : `<div class="field"><label class="f" for="pw">Mật khẩu</label>
         <div class="pwrow"><input class="input" id="pw" name="pw" type="password" placeholder="Mật khẩu của em" autocomplete="current-password" required>
         <button type="button" class="btn" data-act="eye" title="Hiện / ẩn mật khẩu">👁</button></div>
         <div class="small muted" style="margin-top:6px">Lần đầu: dùng mật khẩu trên phiếu cô phát, sau đó đặt mật khẩu mới.</div></div>
-      <button class="btn btn-primary btn-block btn-lg" id="loginBtn">Đăng nhập</button>
+      <button class="btn btn-primary btn-block btn-lg" id="loginBtn">Đăng nhập</button>`}
       <p class="muted small center" style="margin:12px 0 0">Quên mật khẩu? Hãy nhờ cô đặt lại. · <a href="#/trang-chu">Trang chủ</a></p>
       <a class="btn btn-gold btn-block btn-lg" href="#/vao-nhanh" style="margin-top:14px">⚡ Vào làm bài nhanh</a>
       <p class="muted small center" style="margin:6px 0 0">Không cần mật khẩu — chỉ dùng được với bài cô cho phép.</p>
@@ -390,8 +394,21 @@ function viewLogin() {
   </div></div>`;
   S.flash = null;
   ACT.eye = () => { const pw = document.getElementById("pw"); pw.type = pw.type === "password" ? "text" : "password"; };
-  ACT.dnKieu = (b) => { S.dnTen = b.dataset.k === "ten"; try { localStorage.setItem("kt_dn_ten", S.dnTen ? "1" : ""); } catch (e) { /* bo */ } viewLogin(); };
-  if (S.dnTen) {
+  ACT.dnKieu = (b) => { S.dnTen = b.dataset.k === "ten"; S.dnChon = null; try { localStorage.setItem("kt_dn_ten", S.dnTen ? "1" : ""); } catch (e) { /* bo */ } viewLogin(); };
+  ACT.dnDoi = () => { S.dnChon = null; viewLogin(); };
+  ACT.dnTim = (b) => busy(b, async () => {
+    const sel = document.getElementById("lop"), ten = document.getElementById("ten"), kq = document.getElementById("dnKq");
+    document.getElementById("err").innerHTML = "";
+    if (!sel.value) { document.getElementById("err").innerHTML = errBox("Em chọn lớp trước nhé."); return; }
+    try {
+      try { localStorage.setItem("kt_dn_lop", sel.value); } catch (e) { /* bo */ }
+      const r = await api("public_dn_tim_ten", { p_lop_id: Number(sel.value), p_chu: ten.value }, false);
+      kq.innerHTML = r.ds.length ? `<p class="small muted" style="margin:0 0 6px">Bấm vào tên của em:</p>${r.ds.map((x, i) => `<button type="button" class="btn btn-block" style="margin-bottom:6px" data-act="dnChonTen" data-i="${i}">🙋 ${esc(x.ten)}</button>`).join("")}`
+        : '<div class="alert alert-warn">Không thấy tên nào. Em kiểm tra lại lớp và gõ đúng vài chữ trong tên.</div>';
+      ACT.dnChonTen = (bb) => { S.dnChon = Object.assign({ lop: sel.selectedOptions[0].textContent }, r.ds[Number(bb.dataset.i)]); viewLogin(); setTimeout(() => { const pw = document.getElementById("pw"); if (pw) pw.focus(); }, 50); };
+    } catch (e) { document.getElementById("err").innerHTML = errBox(e); }
+  });
+  if (S.dnTen && !S.dnChon) {
     api("public_ds_lop", {}, false).then((ds) => {
       const sel = document.getElementById("lop"); if (!sel) return;
       let nho = ""; try { nho = localStorage.getItem("kt_dn_lop") || ""; } catch (e) { /* bo */ }
@@ -402,9 +419,10 @@ function viewLogin() {
     try {
       let r;
       if (S.dnTen) {
-        try { localStorage.setItem("kt_dn_lop", f.lop.value); } catch (e) { /* bo */ }
-        r = await api("login_ten", { p_lop_id: Number(f.lop.value), p_ho_ten: f.ten.value, p_password: f.pw.value }, false);
+        if (!S.dnChon) { document.getElementById("err").innerHTML = errBox("Em tìm và bấm chọn tên của em trước nhé."); return; }
+        r = await api("login", { p_code: S.dnChon.ma, p_password: f.pw.value }, false);
       } else r = await api("login", { p_code: f.code.value, p_password: f.pw.value }, false);
+      S.dnChon = null;
       setSession(r.token, r.user);
       go(r.user.role === "teacher" ? "#/t" : r.user.default_password ? "#/doi-mk" : sauDangNhap());
     } catch (e) { document.getElementById("err").innerHTML = errBox(e); }
@@ -498,14 +516,16 @@ function bindPasswordForm() {
  * ================================================================ */
 function asgStatus(a) {
   if (a.doing_id) return { key: "doing", html: '<span class="badge gold">Đang làm dở</span>' };
-  if (a.used > 0) return { key: "done", html: `<span class="score ${scoreCls(a.best)}">${fmtScore(a.best)}</span>` };
+  if (a.used > 0 && a.muc_dat && !a.dat && !a.closed) return { key: "todo", html: `<span class="badge gold">Chưa đạt ${a.muc_dat}% — làm lại</span>` };
+  if (a.used > 0) return { key: "done", html: `${a.muc_dat && a.dat ? '<span class="badge hw">Đạt</span> ' : ""}<span class="score ${scoreCls(a.best)}">${fmtScore(a.best)}</span>` };
   if (a.closed) return { key: "missed", html: '<span class="badge">Không làm</span>' };
   return { key: "todo", html: '<span class="badge gold">Chưa làm</span>' };
 }
 function asgMeta(a) {
   const bits = [`${a.n_questions} câu`];
   if (a.time_limit_min) bits.push(`${a.time_limit_min} phút`);
-  if (a.max_attempts) bits.push(`làm ${a.used || 0}/${a.max_attempts} lần`);
+  if (a.max_attempts && !a.muc_dat) bits.push(`làm ${a.used || 0}/${a.max_attempts} lần`);
+  if (a.muc_dat) bits.push(`cần đạt ${a.muc_dat}%`);
   if (a.due_at) bits.push(`Hạn ${fmtDT(a.due_at)}${a.closed ? "" : " (" + remainText(a.due_at) + ")"}`);
   return bits.join(" · ");
 }
@@ -639,12 +659,13 @@ async function sStart(aid) {
     if (!a) throw new Error(S.user.vao_nhanh ? "Bài này không cho vào nhanh. Em đăng nhập bằng mã và mật khẩu để làm nhé." : "Không tìm thấy bài này.");
     past = S.user.vao_nhanh ? [] : (await api("my_results")).filter((r) => r.assignment_id === aid);
   } catch (e) { app.querySelector("main").innerHTML = pageError(e, "#/"); return; }
-  const left = a.max_attempts ? a.max_attempts - (a.used || 0) : null;
+  const left = a.max_attempts && !(a.muc_dat && !a.dat) ? a.max_attempts - (a.used || 0) : null;
   const canStart = a.doing_id || (!a.closed && (left === null || left > 0));
   let rules = `<li>Bài có <b>${a.n_questions} câu</b> trắc nghiệm.</li>`;
   if (a.time_limit_min) rules += `<li>Thời gian: <b>${a.time_limit_min} phút</b>, tính từ lúc bấm bắt đầu. Hết giờ bài <b>tự nộp</b>.</li>`;
   if (a.due_at) rules += `<li>Hạn nộp: <b>${fmtDT(a.due_at)}</b> (${remainText(a.due_at)}).</li>`;
   rules += `<li>Số lần làm: <b>${a.max_attempts ? a.max_attempts + " lần" : "không giới hạn"}</b>${a.used ? ` (đã làm ${a.used})` : ""}${a.mode === "homework" && a.max_attempts !== 1 ? ", lấy điểm cao nhất" : ""}.</li>`;
+  if (a.muc_dat) rules += `<li>Cô yêu cầu đúng ít nhất <b>${a.muc_dat}%</b>. ${a.dat ? "✅ Em đã đạt yêu cầu." : "Chưa đạt thì em làm lại đến khi đạt nhé."}</li>`;
   if (a.on_tung_cau && a.max_attempts !== 1) rules += "<li><b>Làm lại = ôn từng câu</b>: chọn xong biết ngay đúng / sai, sai thì chọn lại đến khi đúng. Điểm lần làm lại tính theo <b>lần chọn đầu</b> của mỗi câu.</li>";
   if (a.show_answers === "after_due") rules += "<li>Nộp xong em xem được <b>các câu làm đúng</b> kèm giải thích; đáp án đầy đủ cô mở sau hạn nộp.</li>";
   rules += "<li>Bài làm được lưu liên tục. Nếu mất mạng hay tắt máy, em vào lại sẽ làm tiếp được.</li>";
@@ -1031,26 +1052,36 @@ function sResult() {
       <div class="big-score ${scoreCls(v)}" style="margin:12px 0 4px">${fmtScore(v)}</div>
       <div class="muted">điểm</div>
       <p><b>Đúng ${r.correct}/${r.total} câu</b></p>
-      <h2 style="margin-bottom:0">${msg}</h2></div>
+      ${r.muc_dat ? "" : `<h2 style="margin-bottom:0">${msg}</h2>`}</div>
     ${r.kieu === "on" ? '<p class="small muted center">Điểm lần ôn tính theo <b>lần chọn đầu</b> của mỗi câu.</p>' : ""}
-    ${r.can_review ? `<a class="btn btn-primary btn-block btn-lg" href="#/review/${r.attempt_id}">📖 Xem lại bài làm ➜</a>`
+    ${r.muc_dat ? (r.dat_lan_nay ? `<div class="alert alert-ok" style="font-size:17px;text-align:center">🎉 <b>Em đã đạt yêu cầu!</b> Em đúng ${r.correct}/${r.total} câu, đạt ${Math.round(r.correct * 100 / Math.max(r.total, 1))}% (cô yêu cầu ${r.muc_dat}%).</div>`
+      : `<div class="alert alert-warn" style="font-size:17px;text-align:center">Em đúng <b>${r.correct}/${r.total}</b> câu, đạt <b>${Math.round(r.correct * 100 / Math.max(r.total, 1))}%</b> — cô yêu cầu <b>${r.muc_dat}%</b>.${r.dat ? "<br>Em đã đạt ở lần làm trước rồi." : "<br><b>Em hãy làm lại bài nhé!</b>"}</div>
+        ${!r.dat && r.can_retry ? `<a class="btn btn-gold btn-block btn-lg" href="#/start/${r.assignment_id}" style="margin-bottom:12px">🔁 Làm lại bài</a>` : ""}`) : ""}
+    ${r.muc_dat && !r.dat && r.khi_chua_dat === "diem" ? '<p class="small muted center">Đạt yêu cầu rồi em sẽ xem được giải thích từng câu.</p>'
+      : r.muc_dat && !r.dat && r.khi_chua_dat === "cau_sai" && !r.vao_nhanh ? `<a class="btn btn-primary btn-block btn-lg" href="#/review/${r.attempt_id}">📖 Xem câu nào em làm sai ➜</a>`
+      : r.can_review ? `<a class="btn btn-primary btn-block btn-lg" href="#/review/${r.attempt_id}">📖 Xem lại bài làm + giải thích ➜</a>`
       : r.xem_mot_phan ? `<a class="btn btn-primary btn-block btn-lg" href="#/review/${r.attempt_id}">📖 Xem các câu em làm đúng ➜</a>
         <p class="small muted center" style="margin:6px 0 0">Đáp án đầy đủ cô mở sau hạn nộp${r.han ? " (" + fmtDT(r.han) + ")" : ""}.</p>`
       : r.vao_nhanh ? '<div class="alert alert-ok">Em đã nộp bài ✔ Muốn xem lại bài làm, em đăng nhập bằng mã và mật khẩu nhé.</div>'
       : '<div class="alert alert-ok">Cô sẽ mở đáp án sau. Em xem lại ở mục <b>📊 Kết quả</b> nhé.</div>'}
-    ${r.can_retry ? `<a class="btn btn-block btn-lg" href="#/start/${r.assignment_id}" style="margin-top:12px">${r.on_tung_cau ? "🔁 Làm lại — ôn từng câu" : "🔁 Làm lại"}</a>` : ""}
+    ${r.can_retry && !(r.muc_dat && !r.dat) ? `<a class="btn btn-block btn-lg" href="#/start/${r.assignment_id}" style="margin-top:12px">${r.on_tung_cau ? "🔁 Làm lại — ôn từng câu" : "🔁 Làm lại"}</a>` : ""}
     <a class="btn btn-ghost btn-block" href="#/" style="margin-top:12px">Về trang chủ</a>`);
 }
 
 function reviewHtml(d, onlyWrong) {
   if (d.am_thanh) ngheChuanBi(d, d.am_thanh, null);
   return d.questions.map((q, i) => {
-    if (q.dung === false && q.options === undefined) {  // truoc han: cau sai chi «chua dung», khong lo dap an
+    if (q.dung === true && q.options === undefined) {  // chua dat + «danh dau cau sai»: cau dung chi bao dung
+      if (onlyWrong) return "";
+      return `<div class="card review"><div class="row between" style="margin-bottom:6px"><b>Câu ${i + 1}</b><span class="badge hw">Đúng</span></div>
+        ${q.instruction ? `<div class="q-instr">${fmt(q.instruction)}</div>` : ""}<div class="q-text" style="font-size:17px">${fmtDe(q.question, q.stt)}</div></div>`;
+    }
+    if (q.dung === false && q.options === undefined) {  // truoc han / chua dat: cau sai chi «chua dung», khong lo dap an
       if (onlyWrong === "dung") return "";
       return `<div class="card review wrong"><div class="row between" style="margin-bottom:6px"><b>Câu ${i + 1}</b><span class="badge exam">${q.trong ? "Bỏ trống" : "Chưa đúng"}</span></div>
         ${q.instruction ? `<div class="q-instr">${fmt(q.instruction)}</div>` : ""}
         <div class="q-text" style="font-size:17px">${fmtDe(q.question, q.stt)}</div>
-        <div class="small muted">🔒 Đáp án và giải thích câu này cô mở sau hạn nộp.</div></div>`;
+        <div class="small muted">🔒 ${d.chua_dat ? "Em làm lại bài cho đạt yêu cầu rồi xem đáp án và giải thích nhé." : "Đáp án và giải thích câu này cô mở sau hạn nộp."}</div></div>`;
     }
     const ok = q.chosen === q.correct;
     if (onlyWrong && ok) return "";
@@ -1060,7 +1091,7 @@ function reviewHtml(d, onlyWrong) {
       ${d.am_thanh ? ngheHtml(d, q) : ""}
       <div class="q-text" style="font-size:17px">${fmtDe(q.question, q.stt)}</div>
       <div class="review-opts">${q.options.map((o, j) => `<div class="opt static ${o.k === q.correct ? "right" : o.k === q.chosen ? "wrong" : ""}"><span class="L">${LETTERS[j]}</span><span>${fmt(o.t)}${o.k === q.chosen ? " <i class='small'>(đã chọn)</i>" : ""}</span></div>`).join("")}</div>
-      ${ok ? (q.explanation ? `<details class="explain-mo" ${d.mot_phan ? "open" : ""}><summary>💡 Giải thích</summary><div class="explain">${fmt(q.explanation)}</div></details>` : "")
+      ${ok ? (q.explanation ? `<details class="explain-mo" open><summary>💡 Giải thích</summary><div class="explain">${fmt(q.explanation)}</div></details>` : "")
         : `<div class="explain"><div class="small" style="margin-bottom:4px">${q.chosen === null || q.chosen === undefined ? "Em <b>bỏ trống</b> câu này" : `Em chọn: <b class="sai">${LETTERS[q.options.findIndex((o) => o.k === q.chosen)]}. ${fmt(q.options.find((o) => o.k === q.chosen).t)}</b>`}
           · Đáp án đúng: <b class="dung">${LETTERS[q.options.findIndex((o) => o.k === q.correct)]}. ${fmt(q.options.find((o) => o.k === q.correct).t)}</b></div>
           ${q.explanation ? `<b>💡 Giải thích</b><div>${fmt(q.explanation)}</div>` : '<span class="small muted">Cô chưa thêm giải thích cho câu này.</span>'}</div>`}</div>`;
@@ -1076,7 +1107,8 @@ async function sReview(id) {
     app.querySelector("main").innerHTML = `<div class="card center"><div class="logo-emoji">📖</div><h1>${esc(d.title)}</h1>
       <div class="big-score ${scoreCls(d.score)}" style="font-size:52px;margin:8px 0">${fmtScore(d.score)}</div>
       <div class="muted">Đúng ${d.correct}/${d.total} câu · nộp lúc ${fmtDT(d.submitted_at)}</div></div>
-      ${d.mot_phan ? `<div class="alert alert-ok">Trước hạn nộp em xem được <b>các câu em làm đúng</b> kèm 💡 giải thích. Câu chưa đúng cô mở đáp án sau hạn${d.han ? " (" + fmtDT(d.han) + ")" : ""} — em thử nghĩ lại nhé!</div>`
+      ${d.chua_dat ? `<div class="alert alert-warn">Em chưa đạt yêu cầu ${d.muc_dat}%. Đây là các câu em làm <b>đúng</b> / <b>chưa đúng</b> — em làm lại bài cho đạt rồi xem giải thích nhé!</div>`
+        : d.mot_phan ? `<div class="alert alert-ok">Trước hạn nộp em xem được <b>các câu em làm đúng</b> kèm 💡 giải thích. Câu chưa đúng cô mở đáp án sau hạn${d.han ? " (" + fmtDT(d.han) + ")" : ""} — em thử nghĩ lại nhé!</div>`
         : `<label class="check"><input type="checkbox" data-ch="ow" ${onlyWrong ? "checked" : ""}> Chỉ xem câu sai</label>`}
       ${reviewHtml(d, onlyWrong) || '<div class="empty">Không có câu sai nào. Tuyệt vời!</div>'}`;
   };
@@ -1430,7 +1462,7 @@ async function tAssignForm(id, quizId) {
   if (id && !a) { app.querySelector("main").innerHTML = errBox("Không tìm thấy bài giao."); return; }
   if (!id && !ov.quizzes.length) { app.querySelector("main").innerHTML = `<div class="alert alert-warn">Chưa có đề nào. <a href="#/t/q/new">Soạn đề trước</a>.</div>`; return; }
   if (!ov.classes.length) { app.querySelector("main").innerHTML = `<div class="alert alert-warn">Chưa có lớp nào. <a href="#/t/classes">Tạo lớp trước</a>.</div>`; return; }
-  const v = a || { mode: "homework", on_tung_cau: true, time_limit_min: null, max_attempts: null, shuffle_questions: true, shuffle_options: true, show_answers: "after_submit", class_ids: [], open_at: new Date().toISOString(), due_at: null };
+  const v = a || { mode: "homework", on_tung_cau: false, muc_dat: null, khi_chua_dat: "diem", time_limit_min: null, max_attempts: null, shuffle_questions: true, shuffle_options: true, show_answers: "after_submit", class_ids: [], open_at: new Date().toISOString(), due_at: null };
   const cls = v.class_ids || [];
   app.querySelector("main").innerHTML = `
     <a href="${id ? "#/t/a/" + id : "#/t"}" class="small">‹ Quay lại</a>
@@ -1455,6 +1487,15 @@ async function tAssignForm(id, quizId) {
           <option value="co" ${v.max_attempts !== 1 && !v.on_tung_cau ? "selected" : ""}>Có — làm lại cả bài như lần đầu</option></select></div>
         <div class="field" id="attBox"><label class="f">Số lần được làm tối đa (0 = không giới hạn)</label><input class="input" type="number" min="0" max="50" name="att" value="${v.max_attempts && v.max_attempts !== 1 ? v.max_attempts : 0}"></div>
       </div>
+      <div class="grid2">
+        <div class="field"><label class="f">Mức đạt yêu cầu</label><select class="input" name="mucdat" data-ch="mucdat">
+          <option value="">Không đặt mức</option>${[50, 55, 60, 65, 70, 75, 80, 85, 90, 95, 100].map((m) => `<option value="${m}" ${v.muc_dat === m ? "selected" : ""}>Đúng từ ${m}%</option>`).join("")}</select>
+          <div class="small muted">Chưa đạt thì học sinh phải làm lại (không giới hạn số lần) đến khi đạt.</div></div>
+        <div class="field" id="kcdBox"><label class="f">Khi chưa đạt, học sinh được xem</label><select class="input" name="kcd">
+          <option value="diem" ${v.khi_chua_dat === "diem" ? "selected" : ""}>Chỉ điểm</option>
+          <option value="cau_sai" ${v.khi_chua_dat === "cau_sai" ? "selected" : ""}>Điểm + đánh dấu câu sai (không lộ đáp án)</option>
+          <option value="giai_thich" ${v.khi_chua_dat === "giai_thich" ? "selected" : ""}>Xem giải thích hết như lúc đạt</option></select></div>
+      </div>
       <label class="check" style="margin:4px 0 10px"><input type="checkbox" name="nhanh" ${v.vao_nhanh ? "checked" : ""}> ⚡ <b>Cho vào nhanh không mật khẩu</b> <span class="small muted">— học sinh chọn lớp + tên (hoặc gõ mã) là vào làm, không cần đăng nhập. Bài làm sẽ có dấu ⚡.</span></label>
       <div class="field"><label class="f">Xem kết quả &amp; đáp án</label><select class="input" name="show">
         ${Object.entries(SHOW_LABEL).map(([k, t]) => `<option value="${k}" ${v.show_answers === k ? "selected" : ""}>${t}</option>`).join("")}</select>
@@ -1468,9 +1509,11 @@ async function tAssignForm(id, quizId) {
   const veAtt = () => { document.getElementById("attBox").style.display = f.lamlai.value === "khong" ? "none" : ""; };
   veAtt();
   ACT["ch:lamlai"] = veAtt;
+  const veKcd = () => { document.getElementById("kcdBox").style.display = f.mucdat.value ? "" : "none"; };
+  veKcd(); ACT["ch:mucdat"] = veKcd;
   ACT["ch:mode"] = (el) => {
     if (el.value === "exam") { f.time.value = f.time.value === "0" ? 15 : f.time.value; f.lamlai.value = "khong"; f.show.value = "after_due"; }
-    else { f.time.value = 0; f.lamlai.value = "on"; f.att.value = 0; f.show.value = "after_submit"; }
+    else { f.time.value = 0; f.lamlai.value = "co"; f.att.value = 0; f.show.value = "after_submit"; }
     veAtt();
   };
   ACT.save = (form) => busy(form.querySelector(".savebar button"), async () => {
@@ -1484,6 +1527,8 @@ async function tAssignForm(id, quizId) {
       max_attempts: form.lamlai.value === "khong" ? 1 : (Number(form.att.value) === 1 ? 2 : Number(form.att.value) || 0),
       on_tung_cau: form.lamlai.value === "on",
       vao_nhanh: form.nhanh.checked,
+      muc_dat: form.mucdat.value ? Number(form.mucdat.value) : null,
+      khi_chua_dat: form.kcd.value,
       show_answers: form.show.value,
     };
     try {
@@ -1529,9 +1574,10 @@ async function tResults(id) {
     const avg = bests.length ? bests.reduce((a, b) => a + b, 0) / bests.length : null;
     let body;
     if (tab === "students") {
-      body = `<div class="table-wrap"><table class="t"><thead><tr><th>#</th><th>Mã</th><th>Họ tên</th><th>Lớp</th><th>Điểm cao nhất</th><th>Lần làm</th><th>Nộp gần nhất</th>${A.mode === "exam" ? "<th>Rời trang</th>" : ""}</tr></thead><tbody>
+      body = `<div class="table-wrap"><table class="t"><thead><tr><th>#</th><th>Mã</th><th>Họ tên</th><th>Lớp</th>${A.muc_dat ? `<th>Đạt ${A.muc_dat}%</th>` : ""}<th>Điểm cao nhất</th><th>Lần làm</th><th>Nộp gần nhất</th>${A.mode === "exam" ? "<th>Rời trang</th>" : ""}</tr></thead><tbody>
         ${list.map((s, i) => `<tr class="click" data-act="stu" data-id="${s.id}">
           <td>${i + 1}</td><td>${esc(s.code)}</td><td class="wrap">${esc(s.name)}${s.vao_nhanh ? ' <span title="Có lần làm bằng «vào nhanh» không mật khẩu">⚡</span>' : ""}</td><td>${esc(s.class_name || "")}</td>
+          ${A.muc_dat ? `<td>${s.used ? (s.dat ? '<span class="badge hw">✅ Đạt</span>' : '<span class="badge exam">Chưa đạt</span>') : ""}</td>` : ""}
           <td>${s.used ? `<span class="score ${scoreCls(s.best)}" style="font-size:16px">${fmtScore(s.best)}</span>` : s.doing ? '<span class="badge gold">Đang làm</span>' : '<span class="badge">Chưa nộp</span>'}</td>
           <td>${s.used || 0}${s.doing && s.used ? " <span class='faint small'>(+1 đang làm)</span>" : ""}</td>
           <td class="small">${s.last_at ? fmtDT(s.last_at) : ""}</td>
@@ -1555,7 +1601,7 @@ async function tResults(id) {
       <a href="#/t" class="small">‹ Bài đã giao</a>
       <div class="row between" style="margin:8px 0 4px"><h1 style="margin:0">${esc(A.title)}</h1>
         <span class="badge ${A.mode === "exam" ? "exam" : "hw"}">${A.mode === "exam" ? "Kiểm tra" : "Bài tập"}</span></div>
-      <div class="small muted">${A.n_questions} câu${A.time_limit_min ? " · " + A.time_limit_min + " phút" : ""} · ${A.max_attempts ? A.max_attempts + " lần" : "không giới hạn số lần"}${A.due_at ? " · Hạn " + fmtDT(A.due_at) : ""} · Xem đáp án: ${SHOW_LABEL[A.show_answers]}${A.archived ? " · <b>Đã lưu trữ</b>" : ""}</div>
+      <div class="small muted">${A.n_questions} câu${A.time_limit_min ? " · " + A.time_limit_min + " phút" : ""} · ${A.max_attempts ? A.max_attempts + " lần" : "không giới hạn số lần"}${A.due_at ? " · Hạn " + fmtDT(A.due_at) : ""} · Xem đáp án: ${SHOW_LABEL[A.show_answers]}${A.muc_dat ? ` · <b>Mức đạt ${A.muc_dat}%</b> (${(R.students.filter((x) => x.dat).length)} em đạt / ${R.students.filter((x) => x.used && !x.dat).length} em chưa đạt)` : ""}${A.archived ? " · <b>Đã lưu trữ</b>" : ""}</div>
       ${A.archived ? "" : linkHtml(linkA)}
       ${A.archived ? "" : `<label class="check small" style="margin-top:8px"><input type="checkbox" data-ch="vaoNhanh" ${aOv && aOv.vao_nhanh ? "checked" : ""}> ⚡ Cho vào nhanh không mật khẩu</label>`}
       ${R.students.some((x) => x.vao_nhanh) ? '<p class="small muted">⚡ = có lần làm bằng «vào nhanh» (không mật khẩu) — cô để ý nếu nghi làm hộ.</p>' : ""}
