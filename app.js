@@ -226,6 +226,7 @@ async function route() {
         case "at": return tAttempt(+p[2]);
         case "quizzes": return tQuizzes();
         case "q": return tEditor(p[2] === "new" ? null : +p[2]);
+        case "de": return moDe(() => tDe(+p[2]));
         case "classes": return tClasses();
         case "c": return p[3] === "print" ? tPrint(+p[2]) : p[3] === "tq" ? tTongQuan(+p[2], query) : tClass(+p[2]);
         case "hoc-phi": return tHocPhi(query);
@@ -314,6 +315,16 @@ function moChamSoc(query) {
   s.src = "cham_soc.js?v=3";
   s.onload = () => tChamSoc(query);
   s.onerror = () => { app.querySelector("main").innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
+  document.head.appendChild(s);
+}
+// Trang chi tiet de (lan cham, anh PNG, nhat ky sua, tai Word) nam o de_cham.js, chi tai khi giao vien mo
+function moDe(chay) {
+  if (window.tDe) return chay();
+  if (location.hash.startsWith("#/t/de/")) app.innerHTML = tShell("quizzes", spinner());
+  const s = document.createElement("script");
+  s.src = "de_cham.js?v=1";
+  s.onload = () => chay();
+  s.onerror = () => { const m = app.querySelector("main"); if (m) m.innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); else toast("Không tải được. Kiểm tra mạng."); };
   document.head.appendChild(s);
 }
 // Trang "Hoc sinh", "Ho so", "Nhan xet tuan" (GV) nam o hoc_sinh.js, chi tai khi giao vien mo
@@ -1690,11 +1701,12 @@ async function tQuizzes() {
     ${ov.quizzes.map((q) => `<div class="card row between">
       <div class="grow"><b>${esc(q.title)}</b>${q.nguon === "may_cham" ? ` <span class="badge" title="Đăng từ phần mềm chấm điểm">📥 Mã đề ${esc(q.ma_de)}</span>` : ""}${q.nguon === "he_cu" ? ' <span class="badge" title="Chuyển từ hệ ôn tập cũ (Apps Script)">🗂 Hệ cũ</span>' : ""}<div class="small muted">${q.n_questions} câu${q.chuyen_de ? " · " + esc(q.chuyen_de) : ""} · 💡 ${q.n_giai_thich}/${q.n_questions} câu có giải thích · sửa lần cuối ${fmtDT(q.updated_at)}</div></div>
       ${q.ma_de && /^[A-Za-z0-9._-]+$/.test(q.ma_de) ? linkHtml(linkBai(q, 0)) : ""}
-      <div class="row"><button class="btn btn-sm" data-act="nghe" data-id="${q.id}" data-t="${esc(q.title)}">🎧 Bài nghe${q.n_am_thanh ? " (" + q.n_am_thanh + ")" : ""}</button><a class="btn btn-sm" href="#/t/q/${q.id}">Sửa</a><a class="btn btn-sm btn-primary" href="#/t/new?quiz=${q.id}">Giao bài</a>
+      <div class="row"><button class="btn btn-sm" data-act="nghe" data-id="${q.id}" data-t="${esc(q.title)}">🎧 Bài nghe${q.n_am_thanh ? " (" + q.n_am_thanh + ")" : ""}</button><a class="btn btn-sm" href="#/t/de/${q.id}">📊 Lần chấm</a><button class="btn btn-sm" data-act="word" data-id="${q.id}">📄 Word</button><a class="btn btn-sm" href="#/t/q/${q.id}">Sửa</a><a class="btn btn-sm btn-primary" href="#/t/new?quiz=${q.id}">Giao bài</a>
       <button class="btn btn-sm btn-danger" data-act="del" data-id="${q.id}" data-t="${esc(q.title)}">Xoá</button></div></div>`).join("") || '<div class="empty">Chưa có đề nào.</div>'}
-    <p class="small muted">Sửa đề không ảnh hưởng tới các bài đã giao trước đó (mỗi bài giao giữ bản sao của đề lúc giao) — riêng <b>giải thích</b> được cập nhật luôn cho bài đã giao. Đề «📥 Mã đề» đăng từ phần mềm chấm điểm: đăng lại từ phần mềm sẽ ghi đè phần sửa trên web.</p>`;
+    <p class="small muted">Sửa đề không ảnh hưởng tới các bài đã giao trước đó (mỗi bài giao giữ bản sao của đề lúc giao) — riêng <b>giải thích</b> được cập nhật luôn cho bài đã giao. Sửa đáp án trên web là <b>chuẩn</b>: web tự chấm lại bài online + bài giấy đã chấm trên web; phần mềm chấm điểm đăng lại sẽ không ghi đè bản cô đã sửa.</p>`;
   datChepLink();
   ACT.nghe = (btn) => tBaiNghe(Number(btn.dataset.id), btn.dataset.t);
+  ACT.word = async (btn) => { btn.disabled = true; try { const q = await api("t_get_quiz", { p_id: Number(btn.dataset.id) }); moDe(() => moWord(q)); } catch (e) { toast(e.message || String(e)); } finally { btn.disabled = false; } };
   ACT.luuThu = (btn) => {
     const k = btn.dataset.khoi, sel = app.querySelector(`[data-thu-de="${k}"]`), sc = app.querySelector(`[data-thu-so="${k}"]`);
     busy(btn, async () => {
@@ -1959,6 +1971,7 @@ D. playing
       E.id = r.id; E.dirty = false;
       msg.innerHTML = "";
       toast("Đã lưu đề");
+      if (r.cham_lai && r.cham_lai.thay_doi) moDe(() => baoChamLai(r.cham_lai));
       if (thenAssign) go("#/t/new?quiz=" + r.id);
       else if (!id) { skipRoute = true; location.hash = "#/t/q/" + r.id; prevHash = location.hash; }
     } catch (e) { msg.innerHTML = errBox(e); msg.scrollIntoView({ behavior: "smooth", block: "center" }); }
