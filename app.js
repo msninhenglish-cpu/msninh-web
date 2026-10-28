@@ -226,6 +226,7 @@ async function route() {
         case "at": return tAttempt(+p[2]);
         case "quizzes": return tQuizzes();
         case "q": return tEditor(p[2] === "new" ? null : +p[2]);
+        case "qth": return moTH(() => tEditorTH(p[2] === "new" ? null : +p[2]));
         case "de": return moDe(() => tDe(+p[2]));
         case "classes": return tClasses();
         case "c": return p[3] === "print" ? tPrint(+p[2]) : p[3] === "tq" ? tTongQuan(+p[2], query) : tClass(+p[2]);
@@ -698,6 +699,176 @@ async function sStart(aid) {
   ACT.rv = (el) => { if (el.dataset.ok === "1") go("#/review/" + el.dataset.id); else toast("Cô chưa mở đáp án bài này."); };
 }
 
+/* ---------------- bai tieu hoc (28/10/2026): anh de, anh lua chon, doan van chung, nut 🔊 doc de ---------------- */
+function urlAnh(dd) { return String(CFG.SUPABASE_URL).replace(/\/$/, "") + "/storage/v1/object/public/anh_de/" + String(dd).split("/").map(encodeURIComponent).join("/"); }
+function laTieuHoc(qs) { return (qs || []).some((q) => q && q.loai); }
+// Doan van dung chung (cho dang lam to vang) + anh de. Cau thuong khong co 2 truong nay -> chuoi rong
+function thTruoc(q) {
+  return (q.doan_van ? `<div class="doan-van">${fmtDe(q.doan_van, q.stt)}</div>` : "")
+    + (q.anh ? `<div class="q-anh"><img src="${esc(urlAnh(q.anh))}" alt="Hình câu ${esc(q.stt)}"></div>` : "");
+}
+// Noi dung 1 lua chon: chu nhu cu; co anh thi anh to + chu (neu co) ben duoi
+function optND(o) { return o.a ? `<img class="opt-anh" src="${esc(urlAnh(o.a))}" alt="">${o.t ? `<span class="opt-chu">${fmt(o.t)}</span>` : ""}` : fmt(o.t); }
+function optNgan(o) { return o.a ? `<img class="opt-anh nho" src="${esc(urlAnh(o.a))}" alt="">${o.t ? " " + fmt(o.t) : ""}` : fmt(o.t); }
+function optsCls(q, goc) { return goc + (q.options && q.options.some((o) => o.a) ? " opts-anh" : ""); }
+// Dong lenh de (de tieu hoc): nut 🔊 doc to lenh + cau hoi (tieng Viet / tieng Anh tu nhan theo dau)
+const VI_DAU = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
+function thLenh(q) {
+  const ds = [plain(q.instruction), q.doc_lenh || plain(q.question).replace(/\(\d{1,3}\)/g, " ")].map((t) => String(t || "").replace(/\s+/g, " ").trim()).filter((t) => /[a-zà-ỹ]/i.test(t));
+  const nut = ds.length && "speechSynthesis" in window ? `<button type="button" class="doc-nut" data-act="docTo" data-doc="${esc(JSON.stringify(ds))}" aria-label="Đọc to đề bài">🔊</button>` : "";
+  return nut || q.instruction ? `<div class="th-lenh">${nut}${q.instruction ? `<div class="q-instr">${fmt(q.instruction)}</div>` : ""}</div>` : "";
+}
+function docTo(ds) {
+  const sp = window.speechSynthesis; if (!sp) return;
+  sp.cancel();
+  const giong = sp.getVoices(), chon = (lang) => giong.find((v) => v.lang.replace("_", "-") === lang) || giong.find((v) => v.lang.toLowerCase().startsWith(lang.slice(0, 2)));
+  const coVi = !!chon("vi-VN"), doc = ds.filter((t) => coVi || !VI_DAU.test(t) || ds.length === 1);
+  if (!coVi && doc.length < ds.length) toast("Máy này chưa có giọng đọc tiếng Việt — chỉ đọc phần tiếng Anh.", 3000);
+  doc.forEach((t) => {
+    const u = new SpeechSynthesisUtterance(t.replace(/_{2,}|…+|\.{3,}/g, " … "));
+    u.lang = VI_DAU.test(t) ? "vi-VN" : "en-US";
+    const v = chon(u.lang); if (v) u.voice = v;
+    u.rate = u.lang === "en-US" ? 0.85 : 1;
+    sp.speak(u);
+  });
+}
+function thGanNut(holder) {
+  ACT.docTo = (b) => { try { docTo(JSON.parse(b.dataset.doc)); } catch (e) { /* bo */ } };
+  ACT.ngheMay = (b) => { if (holder) ngheDung(holder); docTo([b.dataset.doc]); };
+  ACT.ngheDoan = (b) => {
+    const x = holder && holder.au && holder.au[b.dataset.i]; if (!x) return;
+    const a = x.a, tu = Number(b.dataset.tu), den = Number(b.dataset.den), lan = Number(b.dataset.lan) || 0;
+    if (lan && holder.nkey) {
+      const kk = holder.nkey + "_d" + b.dataset.qi, n = Number(LS.get(kk) || 0);
+      if (n >= lan) { toast(`Em đã nghe đủ ${lan} lần.`, 3000); return; }
+      LS.set(kk, n + 1);
+    }
+    ngheDung(holder); thDungDoc();
+    if (a._dung) a.removeEventListener("timeupdate", a._dung);
+    a._dung = () => { if (a.currentTime >= den) { a.pause(); a.removeEventListener("timeupdate", a._dung); } };
+    a.addEventListener("timeupdate", a._dung);
+    const bat = () => { a.currentTime = tu; a.play().catch(() => toast("Chưa phát được âm thanh. Em kiểm tra mạng / âm lượng rồi bấm lại.")); };
+    if (a.readyState >= 1) bat(); else { a.preload = "auto"; a.addEventListener("loadedmetadata", bat, { once: true }); a.load(); }
+  };
+}
+function thDungDoc() { try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) { /* bo */ } }
+// Xao co dinh theo hat giong (tranh ghep, o chu cai): moi lan ve lai van cung thu tu
+function thTron(ds, hat) {
+  const h = (t) => { let x = 2166136261; for (const c of String(t)) x = Math.imul(x ^ c.charCodeAt(0), 16777619); return x >>> 0; };
+  return ds.map((x, i) => ({ x, v: h(hat + "|" + i) })).sort((a, b) => a.v - b.v).map((y) => y.x);
+}
+// De tieu hoc: xep theo chang, cac cau cung nhom ghep dung lien nhau
+function thXep(qs) {
+  if (!laTieuHoc(qs)) return qs;
+  const dau = {};
+  qs.forEach((q, i) => { if (q.nhom && dau[q.nhom] === undefined) dau[q.nhom] = i; });
+  return qs.map((q, i) => ({ q, i, g: q.nhom ? dau[q.nhom] : i })).sort((a, b) => (a.q.chang || 0) - (b.q.chang || 0) || a.g - b.g || a.i - b.i).map((x) => x.q);
+}
+// [dau, cuoi] cua nhom ghep chua cau i (luot «giai thich tung cau»: tung cau rieng)
+function thNhom(qz, i) {
+  const q = qz.qs[i];
+  if (!qz.th || qz.on || !q || q.loai !== "ghep" || !q.nhom) return [i, i];
+  let a = i, b = i;
+  while (a > 0 && qz.qs[a - 1].nhom === q.nhom) a--;
+  while (b < qz.qs.length - 1 && qz.qs[b + 1].nhom === q.nhom) b++;
+  return [a, b];
+}
+// Nut nghe to: doan trong file nghe (nghe_doan) -> may doc loi_nghe (chua co file)
+function thNgheNut(holder, q) {
+  const ds = holder.am_thanh || [], nd = q.nghe_doan;
+  const i = nd ? ds.findIndex((f) => f.ten === nd.tep) : -1;
+  if (i >= 0) return `<button type="button" class="nghe-to" data-act="ngheDoan" data-i="${i}" data-tu="${nd.tu_giay}" data-den="${nd.den_giay}" data-lan="${nd.so_lan || ""}" data-qi="${q.qi}">🎧 Nghe</button>`;
+  const coFile = ds.some((f) => !(holder.doanTep && holder.doanTep.has(f.ten)) && (f.tu == null || (q.stt >= f.tu && q.stt <= f.den)));
+  if (q.loi_nghe && !coFile && "speechSynthesis" in window) return `<button type="button" class="nghe-to" data-act="ngheMay" data-doc="${esc(q.loi_nghe)}">🎧 Nghe</button>`;
+  return "";
+}
+// Than cau theo dang (de tieu hoc). cls(o): lop cua lua chon (sel / right / wrong); dis: khoa. null = dung kieu chung.
+function thThan(qz, q, cls, dis) {
+  const qt = `<div class="q-text">${fmtDe(q.question, q.stt)}</div>`;
+  if (q.loai === "dung_sai") {
+    return qt + `<div class="opts ds">${q.options.slice().sort((a, b) => a.k - b.k).map((o) => `<button class="opt ds-nut ${o.k === 0 ? "ds-dung" : "ds-sai"} ${cls(o)}" data-act="pick" data-k="${o.k}" ${dis ? "disabled" : ""}><span class="ds-hinh">${o.k === 0 ? "✓" : "✗"}</span><span>${esc(o.t)}</span></button>`).join("")}</div>`;
+  }
+  if (q.loai === "nghe_chu") {
+    return qt + `<div class="opts chu-cai">${q.options.map((o) => `<button class="opt ${cls(o)}" data-act="pick" data-k="${o.k}" ${dis ? "disabled" : ""}>${o.a ? optND(o) : `<span class="chu-to">${esc(o.t)}</span>`}</button>`).join("")}</div>`;
+  }
+  if (q.loai === "dien_chu") return thChuHtml(qz, q, dis);
+  if (q.loai === "ghep" && !qz.on) { const [a, b] = thNhom(qz, qz.qs.indexOf(q)); return thGhepHtml(qz, a, b); }
+  return null;
+}
+// Dien chu cai thieu: o trong + o chu cai cham (khong go phim). Trang thai = chi so o chu da cham (qz.chu[qi])
+function thTu(q) { return ((q.options || []).find((o) => o.k === 0) || {}).t || ""; }
+function thOChu(qz, q) {
+  const tu = thTu(q), them = "aeiontsr".split("").filter((c) => !tu.includes(c)).slice(0, 2);
+  return thTron((q.o_chu && q.o_chu.length ? q.o_chu : tu.split("").concat(them)).map((c, i) => ({ c, i })), qz.id + "c" + q.qi);
+}
+function thChuDa(qz, q) {
+  qz.chu = qz.chu || {};
+  if (!qz.chu[q.qi] && qz.answers[q.qi] === 0 && !qz.on) {  // da dung (luu tren may chu) -> ghep lai o chu
+    const con = thOChu(qz, q).slice(), ds = [];
+    for (const c of thTu(q)) { const j = con.findIndex((t) => t && t.c === c); if (j >= 0) { ds.push(con[j].i); con[j] = null; } }
+    qz.chu[q.qi] = ds;
+  }
+  return qz.chu[q.qi] || [];
+}
+function thChuHtml(qz, q, dis) {
+  const o = thOChu(qz, q), da = thChuDa(qz, q), chu = da.map((i) => (o.find((t) => t.i === i) || {}).c || "");
+  let j = 0;
+  const cau = esc(plain(q.question)).replace(/_/g, () => { const c = chu[j]; const h = `<span class="o-chu ${c ? "co" : ""} ${j === chu.length ? "dang" : ""}">${c ? esc(c) : "&nbsp;"}</span>`; j++; return h; });
+  return `<div class="q-text dien-chu">${cau}</div>
+    <div class="chu-o">${o.map((t) => `<button type="button" class="chu-nut" data-act="chuCai" data-i="${t.i}" ${dis || da.includes(t.i) ? "disabled" : ""}>${esc(t.c)}</button>`).join("")}
+      <button type="button" class="chu-nut xoa" data-act="chuXoa" ${dis || !da.length ? "disabled" : ""} aria-label="Xoá chữ cuối">⌫</button></div>`;
+}
+// Noi cau - tranh: cham cau roi cham tranh. Moi cau = 1 cau hoi (dap an = k cua tranh)
+function thGhepHtml(qz, a, b) {
+  const ds = qz.qs.slice(a, b + 1), tranh = thTron(ds[0].options, qz.id + "g" + ds[0].nhom);
+  const chon = qz.ghepChon;
+  return `<p class="small muted center" style="margin:4px 0 10px">Chạm vào câu, rồi chạm vào tranh đúng.</p><div class="ghep">
+    <div class="ghep-cot">${ds.map((q, j) => { const o = q.options.find((x) => x.k === qz.answers[q.qi]);
+      return `<button type="button" class="ghep-cau ${chon === q.qi ? "chon" : ""} ${o ? "co" : ""}" data-act="ghepCau" data-qi="${q.qi}"><span class="ghep-so">${j + 1}</span><span class="grow">${fmt(q.question)}</span>${o && o.a ? `<img src="${esc(urlAnh(o.a))}" alt="">` : ""}</button>`; }).join("")}</div>
+    <div class="ghep-tranh">${tranh.map((o) => { const ai = ds.findIndex((q) => qz.answers[q.qi] === o.k);
+      return `<button type="button" class="ghep-anh ${ai >= 0 ? "co" : ""}" data-act="ghepTranh" data-k="${o.k}"><img src="${esc(urlAnh(o.a || ""))}" alt="">${ai >= 0 ? `<span class="ghep-so">${ai + 1}</span>` : ""}</button>`; }).join("")}</div></div>`;
+}
+// Het chang: phao hoa + sao
+function thMung(chang, sau) {
+  const hoa = Array.from({ length: 14 }, (_, i) => `<i style="left:${(i * 37) % 100}%;animation-delay:${(i % 5) * 0.15}s">${"🎉⭐✨🌟🎊"[i % 5]}</i>`).join("");
+  openSheet(`<div class="mung"><div class="mung-hoa">${hoa}</div><div class="mung-sao">⭐⭐⭐</div>
+    <h2>Giỏi quá! Em xong chặng ${chang} rồi! 🎉</h2><p class="muted">Nghỉ một chút rồi làm tiếp nhé.</p>
+    <button type="button" class="btn btn-gold btn-block btn-lg" data-act="mungTiep">Làm tiếp ➜</button></div>`);
+  ACT.mungTiep = () => { closeSheet(); sau(); };
+}
+// Ket qua cho phu huynh: sao + loi khen (diem / % van luu ben trong)
+function thSao(dung, tong) {
+  const p = tong ? dung / tong : 0, n = p >= 0.8 ? 3 : p >= 0.5 ? 2 : 1;
+  return { n, html: "⭐".repeat(n) + "☆".repeat(3 - n), khen: n === 3 ? "Tuyệt vời! Con làm rất giỏi! 🎉" : n === 2 ? "Con làm tốt lắm! Cố thêm chút nữa nhé! 💪" : "Con đã cố gắng! Mình ôn lại rồi làm lại nhé! 🌱" };
+}
+// Phieu «I can…» sau khi nop: cham mat cuoi (khong tinh diem)
+async function thICan(aid) {
+  const el = document.getElementById("ican"); if (!el) return;
+  let d; try { d = await api("student_i_can", { p_attempt_id: aid }); } catch (e) { return; }
+  if (!d.ds || !d.ds.length) return;
+  const MAT = [["1", "😟", "Chưa làm được"], ["2", "🙂", "Làm được"], ["3", "😄", "Làm rất tốt"]];
+  const ve = () => {
+    el.innerHTML = `<div class="card ican"><h2 style="margin-bottom:4px">🌈 Con tự đánh giá</h2><p class="small muted" style="margin-top:0">Con chạm vào mặt cười đúng với mình nhé (không tính điểm).</p>
+      ${d.ds.map((t, i) => `<div class="ican-dong"><div class="ican-chu">${esc(t)}</div><div class="ican-mat">${MAT.map(([m, e, ten]) => `<button type="button" class="${String(d.da[i]) === m ? "chon" : ""}" data-act="iCan" data-i="${i}" data-m="${m}" aria-label="${ten}" title="${ten}">${e}</button>`).join("")}</div></div>`).join("")}</div>`;
+  };
+  ACT.iCan = async (b) => {
+    const i = b.dataset.i, m = Number(b.dataset.m), cu = d.da[i];
+    d.da[i] = m; ve();
+    try { await api("student_luu_i_can", { p_attempt_id: aid, p_muc: { [i]: m } }); } catch (e) { d.da[i] = cu; ve(); toast(e.message, 3000); }
+  };
+  ve();
+}
+// Trinh soan de tieu hoc (GV) nam o tieu_hoc.js, chi tai khi mo
+function moTH(chay) {
+  if (window.tEditorTH) return chay();
+  app.innerHTML = tShell("quizzes", spinner());
+  const s = document.createElement("script");
+  s.src = "tieu_hoc.js?v=2";
+  s.onload = () => chay();
+  s.onerror = () => { const m = app.querySelector("main"); if (m) m.innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
+  document.head.appendChild(s);
+}
+
 /* ---------------- bai nghe ---------------- */
 function urlAmThanh(dd) { return String(CFG.SUPABASE_URL).replace(/\/$/, "") + "/storage/v1/object/public/am_thanh/" + dd.split("/").map(encodeURIComponent).join("/"); }
 // Moi trang (lam bai / xem lai) giu 1 bo Audio: chuyen cau van nghe tiep. so lan nghe (GV gioi han) dem tren may theo luot lam.
@@ -717,7 +888,7 @@ function ngheHtml(holder, q) {
   const ds = holder.am_thanh || [];
   if (!ds.length) return "";
   ngheChuanBi(holder, ds, holder.nkey === undefined && holder.id ? "kt_nghe_" + holder.id : holder.nkey);
-  return ds.map((f, i) => (f.tu == null || (q.stt >= f.tu && q.stt <= f.den)) ? `<div class="nghe" data-nghe="${i}">
+  return ds.map((f, i) => !(holder.doanTep && holder.doanTep.has(f.ten)) && (f.tu == null || (q.stt >= f.tu && q.stt <= f.den)) ? `<div class="nghe" data-nghe="${i}">
     <button class="nghe-nut" data-act="ngheBat" data-i="${i}" aria-label="Phát / tạm dừng">▶</button>
     <div class="grow"><div class="small"><b>🎧 ${esc(f.ten || "Bài nghe")}</b>${f.tu != null ? ` <span class="muted">· câu ${f.tu === f.den ? f.tu : f.tu + "–" + f.den}</span>` : ""}</div>
       <input type="range" class="nghe-tua" data-in="ngheTua" data-i="${i}" min="0" max="1000" value="0" aria-label="Tua">
@@ -814,6 +985,7 @@ async function sQuiz(aid) {
   }
   const key = "kt_att_" + d.attempt_id;
   const local = LS.get(key);
+  d.questions = thXep(d.questions);
   const serverT = d.saved_at ? Date.parse(d.saved_at) : 0;
   const useLocal = local && local.t > serverT;
   Q = {
@@ -823,8 +995,9 @@ async function sQuiz(aid) {
     idx: Math.min((local && local.idx) || 0, d.questions.length - 1),
     deadline: d.deadline_at ? Date.parse(d.deadline_at) : null,
     offset: Date.parse(d.server_now) - Date.now(),
-    dirty: !!useLocal, submitting: false, done: false, am_thanh: d.am_thanh || [], nkey: "kt_nghe_" + d.attempt_id,
+    dirty: !!useLocal, submitting: false, done: false, am_thanh: d.am_thanh || [], nkey: "kt_nghe_" + d.attempt_id, th: laTieuHoc(d.questions),
     on: d.kieu === "on" ? { xong: d.on_xong || {}, gt: d.on_giai_thich || {}, dap_an: d.on_dap_an || {}, chon: Object.assign({}, d.answers || {}) } : null,
+    chu: (useLocal && local.chu) || {}, doanTep: new Set(d.questions.filter((q) => q.nghe_doan).map((q) => q.nghe_doan.tep)),
   };
   if (Q.on) { Q.answers = {}; const i = Q.qs.findIndex((x) => !Q.on.xong[x.qi]); Q.idx = i < 0 ? 0 : i; }
   const qz = Q;
@@ -842,9 +1015,9 @@ async function sQuiz(aid) {
   const onUnload = (e) => { if (!qz.done) { quizLocal(qz); e.preventDefault(); e.returnValue = ""; } };
   document.addEventListener("visibilitychange", onVis);
   window.addEventListener("beforeunload", onUnload);
-  ngheGanNut(qz);
+  ngheGanNut(qz); thGanNut(qz);
   cleanup = () => {
-    ngheDung(qz);
+    ngheDung(qz); thDungDoc();
     clearInterval(tick); clearInterval(autosave);
     document.removeEventListener("visibilitychange", onVis);
     window.removeEventListener("beforeunload", onUnload);
@@ -859,16 +1032,46 @@ async function sQuiz(aid) {
     app.querySelectorAll(".opt").forEach((b) => b.classList.toggle("sel", b === el));
     quizCounters(qz);
   };
-  ACT.prev = () => { if (qz.idx > 0) { qz.idx--; quizDraw(qz); window.scrollTo(0, 0); } };
-  ACT.next = () => { if (qz.idx < qz.qs.length - 1) { qz.idx++; quizDraw(qz); window.scrollTo(0, 0); } };
-  ACT.jump = (el) => { closeSheet(); qz.idx = Number(el.dataset.i); quizDraw(qz); window.scrollTo(0, 0); };
+  // cau ghep cung nhom = 1 man; het chang (de tieu hoc) -> phao hoa roi moi sang chang moi
+  const den = (i) => { qz.idx = i; qz.ghepChon = null; thDungDoc(); quizDraw(qz); window.scrollTo(0, 0); };
+  ACT.prev = () => { if (qz.idx > 0) den(thNhom(qz, qz.idx - 1)[0]); };
+  ACT.next = () => {
+    const i = thNhom(qz, qz.idx)[1] + 1; if (i >= qz.qs.length) return;
+    const c = qz.qs[qz.idx].chang, c2 = qz.qs[i].chang;
+    if (qz.th && c && c2 && c2 !== c) thMung(c, () => den(i)); else den(i);
+  };
+  ACT.jump = (el) => { closeSheet(); den(thNhom(qz, Number(el.dataset.i))[0]); };
+  ACT.ghepCau = (b) => { qz.ghepChon = Number(b.dataset.qi); quizDraw(qz); };
+  ACT.ghepTranh = (b) => {
+    if (qz.ghepChon == null) { toast("Em chạm vào một câu trước nhé!", 2500); return; }
+    const k = Number(b.dataset.k), [a, z] = thNhom(qz, qz.idx), ds = qz.qs.slice(a, z + 1);
+    ds.forEach((q) => { if (qz.answers[q.qi] === k) delete qz.answers[q.qi]; });
+    qz.answers[qz.ghepChon] = k;
+    const tiep = ds.find((q) => qz.answers[q.qi] === undefined);
+    qz.ghepChon = tiep ? tiep.qi : null;
+    qz.dirty = true; quizLocal(qz); quizDraw(qz);
+  };
+  // dien chu cai: du o -> chon k 0 (dung) / k 1 (sai); luot «giai thich tung cau» gui ngay
+  const chuXong = (q) => {
+    const o = thOChu(qz, q), da = qz.chu[q.qi] || [], tu = thTu(q);
+    if (da.length < tu.length) { if (!qz.on) delete qz.answers[q.qi]; return null; }
+    return da.map((i) => o.find((t) => t.i === i).c).join("").toLowerCase() === tu.toLowerCase() ? 0 : 1;
+  };
+  const chuDoi = (q) => {
+    const k = chuXong(q);
+    if (qz.on) { if (k !== null) return onChon(qz, k); quizDraw(qz); return; }
+    if (k !== null) qz.answers[q.qi] = k;
+    qz.dirty = true; quizLocal(qz); quizDraw(qz);
+  };
+  ACT.chuCai = (b) => { const q = qz.qs[qz.idx], da = thChuDa(qz, q); if (da.length >= thTu(q).length) return; qz.chu[q.qi] = da.concat(Number(b.dataset.i)); chuDoi(q); };
+  ACT.chuXoa = () => { const q = qz.qs[qz.idx]; qz.chu[q.qi] = thChuDa(qz, q).slice(0, -1); chuDoi(q); };
   ACT.closeSheet = () => closeSheet();
   ACT.noop = () => {};
   ACT.askSubmit = () => quizAskSubmit(qz);
   ACT.doSubmit = () => { closeSheet(); quizSubmit(qz, false); };
   quizDraw(qz);
 }
-function quizLocal(qz) { LS.set(qz.key, { answers: qz.answers, leave: qz.leave, idx: qz.idx, t: Date.now() }); }
+function quizLocal(qz) { LS.set(qz.key, { answers: qz.answers, leave: qz.leave, idx: qz.idx, chu: qz.chu, t: Date.now() }); }
 function quizRemain(qz) { return qz.deadline ? qz.deadline - (Date.now() + qz.offset) : null; }
 function quizAnswered(qz) { return qz.on ? qz.qs.filter((q) => qz.on.xong[q.qi]).length : qz.qs.filter((q) => qz.answers[q.qi] !== undefined).length; }
 function fmtClock(ms) {
@@ -902,26 +1105,27 @@ function onPhanHoi(qz, q) {
   const L = q.options.findIndex((x) => x.k === o.dap_an[q.qi]);
   const tiep = qz.qs.findIndex((x, i) => i > qz.idx && !o.xong[x.qi]), vong = qz.qs.findIndex((x) => !o.xong[x.qi]);
   return `<div class="on-fb ${dung ? "dung" : "sai"}"><b>${dung ? "✅ Đúng rồi!" : "❌ Chưa đúng."}</b>
-      ${dung || L < 0 ? "" : `<div style="margin-top:6px">Đáp án đúng: <b>${LETTERS[L]}. ${fmt(q.options[L].t)}</b></div>`}
+      ${dung || L < 0 ? "" : `<div style="margin-top:6px">Đáp án đúng: <b>${LETTERS[L]}. ${optNgan(q.options[L])}</b></div>`}
       ${o.gt[q.qi] ? `<div style="margin-top:6px">💡 ${fmt(o.gt[q.qi])}</div>` : ""}</div>
     ${conLai ? `<button class="btn btn-primary btn-block btn-lg" data-act="onTiep" data-i="${tiep >= 0 ? tiep : vong}">Câu tiếp →</button>`
       : `<div class="on-fb dung" style="text-align:center"><b>🎉 Em đã làm xong cả ${n} câu!</b></div><button class="btn btn-gold btn-block btn-lg" data-act="doSubmit">Nộp bài ✔</button>`}`;
 }
 function quizDraw(qz) {
   if (qz.on) return onDraw(qz);
-  const q = qz.qs[qz.idx], n = qz.qs.length, last = qz.idx === n - 1;
-  app.innerHTML = `<div class="page">
+  const q = qz.qs[qz.idx], n = qz.qs.length, last = thNhom(qz, qz.idx)[1] === n - 1;
+  const chang = qz.th && q.chang ? `<span class="chang">⭐ Chặng ${q.chang} / ${Math.max(...qz.qs.map((x) => x.chang || 0))}</span>` : "";
+  app.innerHTML = `<div class="page${qz.th ? " th" : ""}">
   <div class="sticky-top">
     <div class="top"><span class="ttl">${qz.mode === "exam" ? "📝" : "📘"} ${esc(qz.title)}</span>
       ${quizShowTimer(qz) ? '<span class="timer" id="timer">⏱ --:--</span>' : ""}</div>
     <div class="bar" style="margin-bottom:14px"><i id="prog"></i></div>
   </div>
   <div class="card">
-    <div class="muted small"><span class="badge ${qz.mode === "exam" ? "exam" : "hw"}" style="margin-right:6px">${qz.mode === "exam" ? "Kiểm tra" : "Bài tập"}</span>Câu ${qz.idx + 1} / ${n} · <span id="cnt"></span></div>
-    ${q.instruction ? `<div class="q-instr" style="margin-top:10px">${fmt(q.instruction)}</div>` : ""}
-    ${ngheHtml(qz, q)}
-    <div class="q-text">${fmtDe(q.question, q.stt)}</div>
-    <div class="opts">${q.options.map((o, i) => `<button class="opt ${qz.answers[q.qi] === o.k ? "sel" : ""}" data-act="pick" data-k="${o.k}"><span class="L">${LETTERS[i]}</span><span>${fmt(o.t)}</span></button>`).join("")}</div>
+    <div class="muted small"><span class="badge ${qz.mode === "exam" ? "exam" : "hw"}" style="margin-right:6px">${qz.mode === "exam" ? "Kiểm tra" : "Bài tập"}</span>Câu ${qz.idx + 1} / ${n} · <span id="cnt"></span>${chang}</div>
+    ${qz.th ? thLenh(q) : q.instruction ? `<div class="q-instr" style="margin-top:10px">${fmt(q.instruction)}</div>` : ""}
+    ${ngheHtml(qz, q)}${qz.th ? thNgheNut(qz, q) : ""}${thTruoc(q)}
+    ${(qz.th && thThan(qz, q, (o) => (qz.answers[q.qi] === o.k ? "sel" : ""), false)) || `<div class="q-text">${fmtDe(q.question, q.stt)}</div>
+    <div class="${optsCls(q, "opts")}">${q.options.map((o, i) => `<button class="opt ${qz.answers[q.qi] === o.k ? "sel" : ""}" data-act="pick" data-k="${o.k}"><span class="L">${LETTERS[i]}</span><span>${optND(o)}</span></button>`).join("")}</div>`}
     <div class="nav">
       <button class="btn" data-act="prev" ${qz.idx === 0 ? "disabled" : ""}>← Câu trước</button>
       ${last ? '<button class="btn btn-gold" data-act="askSubmit">Nộp bài ✔</button>' : '<button class="btn btn-primary" data-act="next">Câu sau →</button>'}
@@ -936,20 +1140,20 @@ function quizDraw(qz) {
 }
 function onDraw(qz) {
   const q = qz.qs[qz.idx], n = qz.qs.length, o = qz.on, xong = o.xong[q.qi];
-  app.innerHTML = `<div class="page">
+  app.innerHTML = `<div class="page${qz.th ? " th" : ""}">
   <div class="sticky-top">
     <div class="top"><span class="ttl">💡 ${esc(qz.title)}</span>${quizShowTimer(qz) ? '<span class="timer" id="timer">⏱ --:--</span>' : ""}</div>
     <div class="bar" style="margin-bottom:14px"><i id="prog"></i></div>
   </div>
   <div class="card">
     <div class="muted small"><span class="badge gold" style="margin-right:6px">💡 Giải thích từng câu</span>Câu ${qz.idx + 1} / ${n} · <span id="cnt"></span></div>
-    ${q.instruction ? `<div class="q-instr" style="margin-top:10px">${fmt(q.instruction)}</div>` : ""}
-    ${ngheHtml(qz, q)}
-    <div class="q-text">${fmtDe(q.question, q.stt)}</div>
-    <div class="opts">${q.options.map((x, i) => {
+    ${qz.th ? thLenh(q) : q.instruction ? `<div class="q-instr" style="margin-top:10px">${fmt(q.instruction)}</div>` : ""}
+    ${ngheHtml(qz, q)}${qz.th ? thNgheNut(qz, q) : ""}${thTruoc(q)}
+    ${(qz.th && thThan(qz, q, (x) => (xong ? (x.k === o.dap_an[q.qi] ? "right" : x.k === o.chon[q.qi] ? "wrong" : "") : ""), xong)) || `<div class="q-text">${fmtDe(q.question, q.stt)}</div>
+    <div class="${optsCls(q, "opts")}">${q.options.map((x, i) => {
       const cls = xong ? (x.k === o.dap_an[q.qi] ? "right" : x.k === o.chon[q.qi] ? "wrong" : "") : "";
-      return `<button class="opt ${cls}" data-act="pick" data-k="${x.k}" ${xong ? "disabled" : ""}><span class="L">${LETTERS[i]}</span><span>${fmt(x.t)}${xong && x.k === o.chon[q.qi] ? " <i class='small'>(em chọn)</i>" : ""}</span></button>`;
-    }).join("")}</div>
+      return `<button class="opt ${cls}" data-act="pick" data-k="${x.k}" ${xong ? "disabled" : ""}><span class="L">${LETTERS[i]}</span><span>${optND(x)}${xong && x.k === o.chon[q.qi] ? " <i class='small'>(em chọn)</i>" : ""}</span></button>`;
+    }).join("")}</div>`}
     ${onPhanHoi(qz, q)}
     <div class="nav" style="margin-top:12px">
       <button class="btn" data-act="prev" ${qz.idx === 0 ? "disabled" : ""}>← Câu trước</button>
@@ -959,7 +1163,11 @@ function onDraw(qz) {
   </div>
   <button class="btn btn-ghost btn-block" data-act="askSubmit">Nộp bài ✔</button>
   </div>`;
-  ACT.onTiep = (b) => { qz.idx = Number(b.dataset.i); quizDraw(qz); window.scrollTo(0, 0); };
+  ACT.onTiep = (b) => {
+    const i = Number(b.dataset.i), c = q.chang, c2 = (qz.qs[i] || {}).chang;
+    const di = () => { qz.idx = i; thDungDoc(); quizDraw(qz); window.scrollTo(0, 0); };
+    if (qz.th && c && c2 && c2 !== c && i > qz.idx) thMung(c, di); else di();
+  };
   quizCounters(qz);
   quizTick(qz);
   Object.keys(qz.au || {}).forEach((i) => ngheVe(qz, i));
@@ -1032,7 +1240,7 @@ async function quizSubmit(qz, auto) {
     const r = await api("submit_attempt", { p_attempt_id: qz.id, p_answers: qz.answers, p_leave_count: qz.leave });
     qz.done = true;
     LS.del(qz.key);
-    r.auto = !!auto;
+    r.auto = !!auto; r.th = qz.th;
     S.lastResult = r; S.home = null;
     closeSheet();
     go("#/result");
@@ -1050,7 +1258,10 @@ function sResult() {
   if (!r) return go("#/");
   const v = Number(r.score);
   const msg = v >= 9 ? "Xuất sắc! 🌟" : v >= 8 ? "Giỏi lắm! 👏" : v >= 6.5 ? "Khá tốt, cố gắng thêm nhé!" : v >= 5 ? "Đạt. Em xem lại các câu sai nhé." : "Em cần ôn lại bài này.";
-  app.innerHTML = sShell("home", `<div class="card center">
+  const sao = r.th ? thSao(r.correct, r.total) : null;
+  app.innerHTML = sShell("home", (sao ? `<div class="card center sao-kq">${r.auto ? '<p><span class="badge gold">⏰ Hết giờ, bài đã được nộp tự động</span></p>' : ""}
+      <div class="muted">${esc(r.title)}</div><div class="sao-to">${sao.html}</div><h2>${sao.khen}</h2>
+      <p class="muted">Con đúng ${r.correct} / ${r.total} câu</p></div><div id="ican"></div>` : "") + `<div class="card center ${sao ? "hidden" : ""}">
       ${r.auto ? '<p><span class="badge gold">⏰ Hết giờ, bài đã được nộp tự động</span></p>' : ""}
       <div class="logo-emoji">${v >= 8 ? "🏆" : v >= 5 ? "👍" : "📚"}</div>
       <div class="muted">${esc(r.title)}</div>
@@ -1071,34 +1282,44 @@ function sResult() {
       : '<div class="alert alert-ok">Cô sẽ mở đáp án sau. Em xem lại ở mục <b>📊 Kết quả</b> nhé.</div>'}
     ${r.can_retry && !(r.muc_dat && !r.dat) ? `<a class="btn btn-block btn-lg" href="#/start/${r.assignment_id}" style="margin-top:12px">🔁 Làm lại cả bài</a>` : ""}
     <a class="btn btn-ghost btn-block" href="#/" style="margin-top:12px">Về trang chủ</a>`);
+  if (r.th) thICan(r.attempt_id);
 }
 
 function reviewHtml(d, onlyWrong) {
   if (d.am_thanh) ngheChuanBi(d, d.am_thanh, null);
+  if (!d.doanTep) d.doanTep = new Set(d.questions.filter((q) => q.nghe_doan).map((q) => q.nghe_doan.tep));
   return d.questions.map((q, i) => {
     if (q.dung === true && q.options === undefined) {  // chua dat + «danh dau cau sai»: cau dung chi bao dung
       if (onlyWrong) return "";
       return `<div class="card review"><div class="row between" style="margin-bottom:6px"><b>Câu ${i + 1}</b><span class="badge hw">Đúng</span></div>
-        ${q.instruction ? `<div class="q-instr">${fmt(q.instruction)}</div>` : ""}<div class="q-text" style="font-size:17px">${fmtDe(q.question, q.stt)}</div></div>`;
+        ${q.instruction ? `<div class="q-instr">${fmt(q.instruction)}</div>` : ""}${thTruoc(q)}<div class="q-text" style="font-size:17px">${fmtDe(q.question, q.stt)}</div></div>`;
     }
     if (q.dung === false && q.options === undefined) {  // truoc han / chua dat: cau sai chi «chua dung», khong lo dap an
       if (onlyWrong === "dung") return "";
       return `<div class="card review wrong"><div class="row between" style="margin-bottom:6px"><b>Câu ${i + 1}</b><span class="badge exam">${q.trong ? "Bỏ trống" : "Chưa đúng"}</span></div>
-        ${q.instruction ? `<div class="q-instr">${fmt(q.instruction)}</div>` : ""}
+        ${q.instruction ? `<div class="q-instr">${fmt(q.instruction)}</div>` : ""}${thTruoc(q)}
         <div class="q-text" style="font-size:17px">${fmtDe(q.question, q.stt)}</div>
         <div class="small muted">🔒 ${d.chua_dat ? "Em làm lại bài cho đạt yêu cầu rồi xem đáp án và giải thích nhé." : "Đáp án và giải thích câu này cô mở sau hạn nộp."}</div></div>`;
+    }
+    if (q.loai === "dien_chu") {
+      const ok2 = q.chosen === q.correct, tu = thTu(q);
+      if (onlyWrong && ok2) return "";
+      let j = 0;
+      const cau = esc(plain(q.question)).replace(/_/g, () => `<b class="dung">${esc(tu[j++] || "")}</b>`);
+      return `<div class="card review ${ok2 ? "" : "wrong"}"><div class="row between" style="margin-bottom:6px"><b>Câu ${i + 1}</b>${ok2 ? '<span class="badge hw">Đúng</span>' : `<span class="badge exam">${q.chosen === null || q.chosen === undefined ? "Bỏ trống" : "Chưa đúng"}</span>`}</div>
+        ${thLenh(q)}${thTruoc(q)}<div class="q-text">${cau}</div>${q.explanation ? `<div class="explain"><b>💡 Giải thích</b><div>${fmt(q.explanation)}</div></div>` : ""}</div>`;
     }
     const ok = q.chosen === q.correct;
     if (onlyWrong && ok) return "";
     return `<div class="card review ${ok ? "" : "wrong"}">
       <div class="row between" style="margin-bottom:6px"><b>Câu ${i + 1}</b>${ok ? '<span class="badge hw">Đúng</span>' : q.chosen === null || q.chosen === undefined ? '<span class="badge exam">Bỏ trống</span>' : '<span class="badge exam">Sai</span>'}</div>
-      ${q.instruction ? `<div class="q-instr">${fmt(q.instruction)}</div>` : ""}
-      ${d.am_thanh ? ngheHtml(d, q) : ""}
+      ${q.loai ? thLenh(q) : q.instruction ? `<div class="q-instr">${fmt(q.instruction)}</div>` : ""}
+      ${d.am_thanh ? ngheHtml(d, q) : ""}${q.loai ? thNgheNut(d, q) : ""}${thTruoc(q)}
       <div class="q-text" style="font-size:17px">${fmtDe(q.question, q.stt)}</div>
-      <div class="review-opts">${q.options.map((o, j) => `<div class="opt static ${o.k === q.correct ? "right" : o.k === q.chosen ? "wrong" : ""}"><span class="L">${LETTERS[j]}</span><span>${fmt(o.t)}${o.k === q.chosen ? " <i class='small'>(đã chọn)</i>" : ""}</span></div>`).join("")}</div>
+      <div class="${optsCls(q, "review-opts")}">${q.options.map((o, j) => `<div class="opt static ${o.k === q.correct ? "right" : o.k === q.chosen ? "wrong" : ""}"><span class="L">${LETTERS[j]}</span><span>${optND(o)}${o.k === q.chosen ? " <i class='small'>(đã chọn)</i>" : ""}</span></div>`).join("")}</div>
       ${ok ? (q.explanation ? `<details class="explain-mo" open><summary>💡 Giải thích</summary><div class="explain">${fmt(q.explanation)}</div></details>` : "")
-        : `<div class="explain"><div class="small" style="margin-bottom:4px">${q.chosen === null || q.chosen === undefined ? "Em <b>bỏ trống</b> câu này" : `Em chọn: <b class="sai">${LETTERS[q.options.findIndex((o) => o.k === q.chosen)]}. ${fmt(q.options.find((o) => o.k === q.chosen).t)}</b>`}
-          · Đáp án đúng: <b class="dung">${LETTERS[q.options.findIndex((o) => o.k === q.correct)]}. ${fmt(q.options.find((o) => o.k === q.correct).t)}</b></div>
+        : `<div class="explain"><div class="small" style="margin-bottom:4px">${q.chosen === null || q.chosen === undefined ? "Em <b>bỏ trống</b> câu này" : `Em chọn: <b class="sai">${LETTERS[q.options.findIndex((o) => o.k === q.chosen)]}. ${optNgan(q.options.find((o) => o.k === q.chosen))}</b>`}
+          · Đáp án đúng: <b class="dung">${LETTERS[q.options.findIndex((o) => o.k === q.correct)]}. ${optNgan(q.options.find((o) => o.k === q.correct))}</b></div>
           ${q.explanation ? `<b>💡 Giải thích</b><div>${fmt(q.explanation)}</div>` : '<span class="small muted">Cô chưa thêm giải thích cho câu này.</span>'}</div>`}</div>`;
   }).join("");
 }
@@ -1109,17 +1330,17 @@ async function sReview(id) {
   try { d = await api("attempt_review", { p_attempt_id: id }); } catch (e) { app.querySelector("main").innerHTML = pageError(e, "#/results"); return; }
   let onlyWrong = false;
   const draw = () => {
-    app.querySelector("main").innerHTML = `<div class="card center"><div class="logo-emoji">📖</div><h1>${esc(d.title)}</h1>
+    app.querySelector("main").innerHTML = `<div class="${laTieuHoc(d.questions) ? "th" : ""}"><div class="card center"><div class="logo-emoji">📖</div><h1>${esc(d.title)}</h1>
       <div class="big-score ${scoreCls(d.score)}" style="font-size:52px;margin:8px 0">${fmtScore(d.score)}</div>
       <div class="muted">Đúng ${d.correct}/${d.total} câu · nộp lúc ${fmtDT(d.submitted_at)}</div></div>
       ${d.chua_dat ? `<div class="alert alert-warn">Em chưa đạt yêu cầu ${d.muc_dat}%. Đây là các câu em làm <b>đúng</b> / <b>chưa đúng</b> — em làm lại bài cho đạt rồi xem giải thích nhé!</div>`
         : d.mot_phan ? `<div class="alert alert-ok">Trước hạn nộp em xem được <b>các câu em làm đúng</b> kèm 💡 giải thích. Câu chưa đúng cô mở đáp án sau hạn${d.han ? " (" + fmtDT(d.han) + ")" : ""} — em thử nghĩ lại nhé!</div>`
         : `<label class="check"><input type="checkbox" data-ch="ow" ${onlyWrong ? "checked" : ""}> Chỉ xem câu sai</label>`}
-      ${reviewHtml(d, onlyWrong) || '<div class="empty">Không có câu sai nào. Tuyệt vời!</div>'}`;
+      ${reviewHtml(d, onlyWrong) || '<div class="empty">Không có câu sai nào. Tuyệt vời!</div>'}</div>`;
   };
   ACT["ch:ow"] = (el) => { onlyWrong = el.checked; draw(); Object.keys(d.au || {}).forEach((i) => ngheVe(d, i)); };
-  ngheGanNut(d);
-  cleanup = () => ngheDung(d);
+  ngheGanNut(d); thGanNut(d);
+  cleanup = () => { ngheDung(d); thDungDoc(); };
   draw();
 }
 
@@ -1688,6 +1909,7 @@ async function tAttempt(id) {
     <div class="card row between"><div><b>Đúng ${d.correct}/${d.total}</b><div class="small muted">Mã ${esc(d.student.code)} · Lớp ${esc(d.student.class_name || "")} · nộp ${fmtDT(d.submitted_at)} · rời trang ${d.leave_count} lần</div></div>
     <span class="score ${scoreCls(d.score)}" style="font-size:28px">${fmtScore(d.score)}</span></div>
     <div style="max-width:760px">${reviewHtml(d, false)}</div>`;
+  thGanNut(d); cleanup = () => thDungDoc();
 }
 
 /* ---------------- kho de ---------------- */
@@ -1696,12 +1918,12 @@ async function tQuizzes() {
   ACT.retry = () => route();
   let ov, bt;
   try { [ov, bt] = await Promise.all([api("t_overview"), api("t_ds_bai_thu")]); } catch (e) { app.querySelector("main").innerHTML = pageError(e); return; }
-  app.querySelector("main").innerHTML = `<div class="row between" style="margin-bottom:12px"><h1 style="margin:0">Kho đề</h1><a class="btn btn-primary" href="#/t/q/new">+ Soạn đề mới</a></div>
+  app.querySelector("main").innerHTML = `<div class="row between" style="margin-bottom:12px"><h1 style="margin:0">Kho đề</h1><div class="row"><a class="btn" href="#/t/qth/new">🧒 + Đề tiểu học</a><a class="btn btn-primary" href="#/t/q/new">+ Soạn đề mới</a></div></div>
     ${baiThuHtml(ov.quizzes, bt)}
     ${ov.quizzes.map((q) => `<div class="card row between">
-      <div class="grow"><b>${esc(q.title)}</b>${q.nguon === "may_cham" ? ` <span class="badge" title="Đăng từ phần mềm chấm điểm">📥 Mã đề ${esc(q.ma_de)}</span>` : ""}${q.nguon === "he_cu" ? ' <span class="badge" title="Chuyển từ hệ ôn tập cũ (Apps Script)">🗂 Hệ cũ</span>' : ""}<div class="small muted">${q.n_questions} câu${q.chuyen_de ? " · " + esc(q.chuyen_de) : ""} · 💡 ${q.n_giai_thich}/${q.n_questions} câu có giải thích · sửa lần cuối ${fmtDT(q.updated_at)}</div></div>
+      <div class="grow"><b>${esc(q.title)}</b>${q.nguon === "may_cham" ? ` <span class="badge" title="Đăng từ phần mềm chấm điểm">📥 Mã đề ${esc(q.ma_de)}</span>` : ""}${q.nguon === "he_cu" ? ' <span class="badge" title="Chuyển từ hệ ôn tập cũ (Apps Script)">🗂 Hệ cũ</span>' : ""}${q.tieu_hoc ? ' <span class="badge gold" title="Đề tiểu học: hình to, nút đọc đề">🧒 Tiểu học</span>' : ""}<div class="small muted">${q.n_questions} câu${q.chuyen_de ? " · " + esc(q.chuyen_de) : ""} · 💡 ${q.n_giai_thich}/${q.n_questions} câu có giải thích · sửa lần cuối ${fmtDT(q.updated_at)}</div></div>
       ${q.ma_de && /^[A-Za-z0-9._-]+$/.test(q.ma_de) ? linkHtml(linkBai(q, 0)) : ""}
-      <div class="row"><button class="btn btn-sm" data-act="nghe" data-id="${q.id}" data-t="${esc(q.title)}">🎧 Bài nghe${q.n_am_thanh ? " (" + q.n_am_thanh + ")" : ""}</button><a class="btn btn-sm" href="#/t/de/${q.id}">📊 Lần chấm</a><button class="btn btn-sm" data-act="word" data-id="${q.id}">📄 Word</button><a class="btn btn-sm" href="#/t/q/${q.id}">Sửa</a><a class="btn btn-sm btn-primary" href="#/t/new?quiz=${q.id}">Giao bài</a>
+      <div class="row"><button class="btn btn-sm" data-act="nghe" data-id="${q.id}" data-t="${esc(q.title)}">🎧 Bài nghe${q.n_am_thanh ? " (" + q.n_am_thanh + ")" : ""}</button><a class="btn btn-sm" href="#/t/de/${q.id}">📊 Lần chấm</a><button class="btn btn-sm" data-act="word" data-id="${q.id}">📄 Word</button><a class="btn btn-sm" href="#/t/${q.tieu_hoc ? "qth" : "q"}/${q.id}">Sửa</a><a class="btn btn-sm btn-primary" href="#/t/new?quiz=${q.id}">Giao bài</a>
       <button class="btn btn-sm btn-danger" data-act="del" data-id="${q.id}" data-t="${esc(q.title)}">Xoá</button></div></div>`).join("") || '<div class="empty">Chưa có đề nào.</div>'}
     <p class="small muted">Sửa đề không ảnh hưởng tới các bài đã giao trước đó (mỗi bài giao giữ bản sao của đề lúc giao) — riêng <b>giải thích</b> được cập nhật luôn cho bài đã giao. Sửa đáp án trên web là <b>chuẩn</b>: web tự chấm lại bài online + bài giấy đã chấm trên web; phần mềm chấm điểm đăng lại sẽ không ghi đè bản cô đã sửa.</p>`;
   datChepLink();
@@ -1844,6 +2066,8 @@ async function tEditor(id) {
     try {
       const q = await api("t_get_quiz", { p_id: id });
       if (!q) throw new Error("Không tìm thấy đề.");
+      // De tieu hoc: trinh soan nay se lam mat anh / doan van -> mo trinh soan tieu hoc
+      if (laTieuHoc(q.questions)) { skipRoute = true; location.hash = "#/t/qth/" + id; prevHash = location.hash; return moTH(() => tEditorTH(id)); }
       E.title = q.title; E.qs = q.questions;
     } catch (e) { app.querySelector("main").innerHTML = pageError(e, "#/t/quizzes"); return; }
   }
