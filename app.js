@@ -227,6 +227,8 @@ async function route() {
         case "quizzes": return tQuizzes();
         case "q": return tEditor(p[2] === "new" ? null : +p[2]);
         case "qth": return moTH(() => tEditorTH(p[2] === "new" ? null : +p[2]));
+        case "nh": return moNH(() => tNganHang(query));
+        case "nhs": return moTH(() => tEditorTH(null, { id: p[2] === "new" ? null : +p[2], khoi: query.get("khoi"), unit: query.get("unit"), bo_sach: query.get("bo"), ten_unit: query.get("ten") }));
         case "de": return moDe(() => tDe(+p[2]));
         case "classes": return tClasses();
         case "c": return p[3] === "print" ? tPrint(+p[2]) : p[3] === "tq" ? tTongQuan(+p[2], query) : tClass(+p[2]);
@@ -859,11 +861,21 @@ async function thICan(aid) {
   ve();
 }
 // Trinh soan de tieu hoc (GV) nam o tieu_hoc.js, chi tai khi mo
+// Kho cau hoi (GV) o ngan_hang.js, chi tai khi mo
+function moNH(chay) {
+  if (window.tNganHang) return chay();
+  app.innerHTML = tShell("quizzes", spinner());
+  const s = document.createElement("script");
+  s.src = "ngan_hang.js?v=3";
+  s.onload = () => chay();
+  s.onerror = () => { const m = app.querySelector("main"); if (m) m.innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
+  document.head.appendChild(s);
+}
 function moTH(chay) {
   if (window.tEditorTH) return chay();
   app.innerHTML = tShell("quizzes", spinner());
   const s = document.createElement("script");
-  s.src = "tieu_hoc.js?v=2";
+  s.src = "tieu_hoc.js?v=5";
   s.onload = () => chay();
   s.onerror = () => { const m = app.querySelector("main"); if (m) m.innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
   document.head.appendChild(s);
@@ -965,7 +977,7 @@ async function tBaiNghe(qid, ten) {
     busy(b, async () => {
       try {
         const r = await api("t_xoa_am_thanh", { p_quiz_id: qid, p_duong_dan: b.dataset.dd });
-        await client().storage.from("am_thanh").remove([r.xoa]);
+        if (r.xoa) await client().storage.from("am_thanh").remove([r.xoa]);  // file dung chung (kho cau hoi / de khac): chi go khoi de
         toast("Đã xoá"); ve();
       } catch (e) { toast(e.message, 4000); }
     });
@@ -1918,7 +1930,7 @@ async function tQuizzes() {
   ACT.retry = () => route();
   let ov, bt;
   try { [ov, bt] = await Promise.all([api("t_overview"), api("t_ds_bai_thu")]); } catch (e) { app.querySelector("main").innerHTML = pageError(e); return; }
-  app.querySelector("main").innerHTML = `<div class="row between" style="margin-bottom:12px"><h1 style="margin:0">Kho đề</h1><div class="row"><a class="btn" href="#/t/qth/new">🧒 + Đề tiểu học</a><a class="btn btn-primary" href="#/t/q/new">+ Soạn đề mới</a></div></div>
+  app.querySelector("main").innerHTML = `<div class="row between" style="margin-bottom:12px"><h1 style="margin:0">Kho đề</h1><div class="row"><a class="btn" href="#/t/nh">📚 Kho câu hỏi</a><a class="btn" href="#/t/qth/new">🧒 + Đề tiểu học</a><a class="btn btn-primary" href="#/t/q/new">+ Soạn đề mới</a></div></div>
     ${baiThuHtml(ov.quizzes, bt)}
     ${ov.quizzes.map((q) => `<div class="card row between">
       <div class="grow"><b>${esc(q.title)}</b>${q.nguon === "may_cham" ? ` <span class="badge" title="Đăng từ phần mềm chấm điểm">📥 Mã đề ${esc(q.ma_de)}</span>` : ""}${q.nguon === "he_cu" ? ' <span class="badge" title="Chuyển từ hệ ôn tập cũ (Apps Script)">🗂 Hệ cũ</span>' : ""}${q.tieu_hoc ? ' <span class="badge gold" title="Đề tiểu học: hình to, nút đọc đề">🧒 Tiểu học</span>' : ""}<div class="small muted">${q.n_questions} câu${q.chuyen_de ? " · " + esc(q.chuyen_de) : ""} · 💡 ${q.n_giai_thich}/${q.n_questions} câu có giải thích · sửa lần cuối ${fmtDT(q.updated_at)}</div></div>
