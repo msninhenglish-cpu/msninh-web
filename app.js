@@ -247,7 +247,7 @@ async function route() {
       }
     }
     // Phien «vao nhanh»: chi trang bai duoc lam, lam bai, ket qua vua nop
-    if (S.user.vao_nhanh && !["start", "quiz", "result", "kiemtra", "baivenha"].includes(p[0])) return nhanhHome();
+    if (S.user.vao_nhanh && !["start", "quiz", "result", "kiemtra", "baivenha", "noi"].includes(p[0])) return nhanhHome();
     if (S.user.default_password && !S.user.vao_nhanh) return viewDoiMk();
     switch (p[0]) {
       case undefined: return sHome();
@@ -701,7 +701,7 @@ async function sStart(aid) {
     <span class="badge ${a.mode === "exam" ? "exam" : "hw"}">${a.mode === "exam" ? "Kiểm tra" : "Bài tập về nhà"}</span>
     <h1 style="margin-top:8px">${esc(a.title)}</h1>
     <div class="card"><ul style="margin:0;padding-left:20px" class="stack">${rules}</ul></div>
-    ${btn}${pastHtml}`, { left: backBtn("#/") });
+    ${btn}${a.so_noi && past.length ? `<a class="btn btn-gold btn-block btn-lg" href="#/noi/${past[0].id}" style="margin-top:8px">🎤 Quay bài nói (${a.so_noi} bài)</a>` : ""}${pastHtml}`, { left: backBtn("#/") });
   ACT.go = () => go("#/quiz/" + aid);
   ACT.rv = (el) => { if (el.dataset.ok === "1") go("#/review/" + el.dataset.id); else toast("Cô chưa mở đáp án bài này."); };
 }
@@ -866,14 +866,19 @@ async function thICan(aid) {
   ve();
 }
 // Bai noi quay video (HS quay, GV cham) o bai_noi.js, chi tai khi mo
+function taiNoiJs() {
+  if (window.sNoi) return Promise.resolve();
+  return new Promise((ok, loi) => {
+    const s = document.createElement("script");
+    s.src = "bai_noi.js?v=3";
+    s.onload = () => ok(); s.onerror = () => loi(new Error("Không tải được phần bài nói."));
+    document.head.appendChild(s);
+  });
+}
 function moNoi(chay) {
   if (window.sNoi) return chay();
   app.innerHTML = (S.user && S.user.role === "teacher" ? tShell : sShell)("home", spinner());
-  const s = document.createElement("script");
-  s.src = "bai_noi.js?v=2";
-  s.onload = () => chay();
-  s.onerror = () => { const m = app.querySelector("main"); if (m) m.innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
-  document.head.appendChild(s);
+  taiNoiJs().then(chay, () => { const m = app.querySelector("main"); if (m) m.innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); });
 }
 // Sau khi nop: bai co phan noi -> the «Con phan NOI»
 async function noiVao(aid) {
@@ -912,7 +917,7 @@ function moTH(chay) {
   if (window.tEditorTH) return chay();
   app.innerHTML = tShell("quizzes", spinner());
   const s = document.createElement("script");
-  s.src = "tieu_hoc.js?v=8";
+  s.src = "tieu_hoc.js?v=9";
   s.onload = () => chay();
   s.onerror = () => { const m = app.querySelector("main"); if (m) m.innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
   document.head.appendChild(s);
@@ -1032,6 +1037,12 @@ async function sQuiz(aid) {
     app.innerHTML = `<div class="center-screen"><div class="login-box">${pageError(e, "#/start/" + aid)}</div></div>`;
     return;
   }
+  // Bai noi (muc 22): la cac cau cuoi ngay trong bai lam (khong co o luot «giai thich tung cau»)
+  let noi = null;
+  if (d.kieu !== "on") {
+    try { const b = await api("student_bai_noi", { p_attempt_id: d.attempt_id }); if (b && b.ds && b.ds.length) { await taiNoiJs(); noi = b; } }
+    catch (e) { /* khong tai duoc phan noi: van lam trac nghiem, nop xong lam phan noi sau */ }
+  }
   const key = "kt_att_" + d.attempt_id;
   const local = LS.get(key);
   d.questions = thXep(d.questions);
@@ -1041,7 +1052,7 @@ async function sQuiz(aid) {
     aid, id: d.attempt_id, title: d.title, mode: d.mode, qs: d.questions, key,
     answers: Object.assign({}, d.answers || {}, useLocal ? local.answers : {}),
     leave: Math.max(d.leave_count || 0, (local && local.leave) || 0),
-    idx: Math.min((local && local.idx) || 0, d.questions.length - 1),
+    idx: Math.min((local && local.idx) || 0, d.questions.length - 1 + (noi ? noi.ds.length : 0)), noi,
     deadline: d.deadline_at ? Date.parse(d.deadline_at) : null,
     offset: Date.parse(d.server_now) - Date.now(),
     dirty: !!useLocal, submitting: false, done: false, am_thanh: d.am_thanh || [], nkey: "kt_nghe_" + d.attempt_id, th: laTieuHoc(d.questions),
@@ -1065,8 +1076,9 @@ async function sQuiz(aid) {
   document.addEventListener("visibilitychange", onVis);
   window.addEventListener("beforeunload", onUnload);
   ngheGanNut(qz); thGanNut(qz);
+  const dungQuay = noi ? noiGanQuay(noi, qz.id, () => quizDraw(qz)) : () => {};
   cleanup = () => {
-    ngheDung(qz); thDungDoc();
+    ngheDung(qz); thDungDoc(); dungQuay();
     clearInterval(tick); clearInterval(autosave);
     document.removeEventListener("visibilitychange", onVis);
     window.removeEventListener("beforeunload", onUnload);
@@ -1085,7 +1097,8 @@ async function sQuiz(aid) {
   const den = (i) => { qz.idx = i; qz.ghepChon = null; thDungDoc(); quizDraw(qz); window.scrollTo(0, 0); };
   ACT.prev = () => { if (qz.idx > 0) den(thNhom(qz, qz.idx - 1)[0]); };
   ACT.next = () => {
-    const i = thNhom(qz, qz.idx)[1] + 1; if (i >= qz.qs.length) return;
+    const i = thNhom(qz, qz.idx)[1] + 1; if (i >= quizTong(qz)) return;
+    if (i >= qz.qs.length) { if (qz.th && qz.idx < qz.qs.length && qz.qs[qz.idx].chang) thMung(qz.qs[qz.idx].chang, () => den(i)); else den(i); return; }   // sang phan noi
     const c = qz.qs[qz.idx].chang, c2 = qz.qs[i].chang;
     if (qz.th && c && c2 && c2 !== c) thMung(c, () => den(i)); else den(i);
   };
@@ -1123,6 +1136,39 @@ async function sQuiz(aid) {
 function quizLocal(qz) { LS.set(qz.key, { answers: qz.answers, leave: qz.leave, idx: qz.idx, chu: qz.chu, t: Date.now() }); }
 function quizRemain(qz) { return qz.deadline ? qz.deadline - (Date.now() + qz.offset) : null; }
 function quizAnswered(qz) { return qz.on ? qz.qs.filter((q) => qz.on.xong[q.qi]).length : qz.qs.filter((q) => qz.answers[q.qi] !== undefined).length; }
+// Tong so «cau» tren man lam bai = trac nghiem + bai noi; so bai noi da quay
+function quizTong(qz) { return qz.qs.length + (qz.noi ? qz.noi.ds.length : 0); }
+function quizNoiXong(qz) { return qz.noi ? qz.noi.ds.filter((_, i) => qz.noi.da[i]).length : 0; }
+function quizDots(qz) {
+  return `<div class="dots">${qz.qs.map((x, i) => `<button class="${qz.answers[x.qi] !== undefined ? "done" : ""} ${i === qz.idx ? "cur" : ""}" data-act="jump" data-i="${i}">${i + 1}</button>`).join("")}${qz.noi ? qz.noi.ds.map((_, k) => { const i = qz.qs.length + k; return `<button class="${qz.noi.da[k] ? "done" : ""} ${i === qz.idx ? "cur" : ""}" data-act="jump" data-i="${i}" title="Bài nói ${k + 1}">🎤</button>`; }).join("") : ""}</div>`;
+}
+// Cau «🎤 Bài nói» trong bai lam: quay / xem lai / hoan thanh ngay tai day (noiGanQuay o bai_noi.js)
+function quizDrawNoi(qz) {
+  const n = quizTong(qz), k = qz.idx - qz.qs.length, t = qz.noi.ds[k], da = qz.noi.da[k], cuoi = qz.idx === n - 1;
+  const coMay = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+  const nut = !qz.noi.mo ? '<div class="alert alert-warn" style="margin-top:10px">Đã quá hạn nộp bài nói.</div>'
+    : !coMay ? '<div class="alert alert-warn" style="margin-top:10px">Máy này chưa quay được. Em mở bài bằng <b>Chrome</b> (Android, máy tính) hoặc <b>Safari</b> (iPhone) bản mới và cho phép dùng camera, micro nhé.</div>'
+    : `<button type="button" class="btn ${da ? "" : "btn-gold"} btn-block btn-lg" data-act="noiQuay" data-i="${k}" style="margin-top:10px">${da ? "🔁 Quay lại" : t.ghi === "am_thanh" ? "🔴 Bấm để ghi âm" : "🔴 Bấm để quay"}</button>`;
+  app.innerHTML = `<div class="page${qz.th ? " th" : ""}">
+  <div class="sticky-top">
+    <div class="top"><span class="ttl">${qz.mode === "exam" ? "📝" : "📘"} ${esc(qz.title)}</span>
+      ${quizShowTimer(qz) ? '<span class="timer" id="timer">⏱ --:--</span>' : ""}</div>
+    <div class="bar" style="margin-bottom:14px"><i id="prog"></i></div>
+  </div>
+  <div class="muted small" style="margin:0 0 8px"><span class="badge ${qz.mode === "exam" ? "exam" : "hw"}" style="margin-right:6px">${qz.mode === "exam" ? "Kiểm tra" : "Bài tập"}</span>Câu ${qz.idx + 1} / ${n} · <span id="cnt"></span><span class="chang">🎤 Nói</span></div>
+  <div class="th">${noiTheHtml(t, k, da, nut)}</div>
+  <div class="card">
+    <div class="nav">
+      <button class="btn" data-act="prev">← Câu trước</button>
+      ${cuoi ? '<button class="btn btn-gold" data-act="askSubmit">Nộp bài ✔</button>' : '<button class="btn btn-primary" data-act="next">Câu sau →</button>'}
+    </div>
+    ${quizDots(qz)}
+  </div>
+  ${cuoi ? "" : '<button class="btn btn-gold btn-block" data-act="askSubmit">Nộp bài ✔</button>'}
+  </div>`;
+  quizCounters(qz);
+  quizTick(qz);
+}
 function fmtClock(ms) {
   const s = Math.max(0, Math.floor(ms / 1000));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
@@ -1161,7 +1207,8 @@ function onPhanHoi(qz, q) {
 }
 function quizDraw(qz) {
   if (qz.on) return onDraw(qz);
-  const q = qz.qs[qz.idx], n = qz.qs.length, last = thNhom(qz, qz.idx)[1] === n - 1;
+  if (qz.noi && qz.idx >= qz.qs.length) return quizDrawNoi(qz);
+  const q = qz.qs[qz.idx], n = quizTong(qz), last = thNhom(qz, qz.idx)[1] === n - 1;
   const chang = qz.th && q.chang ? `<span class="chang">⭐ Chặng ${q.chang} / ${Math.max(...qz.qs.map((x) => x.chang || 0))}</span>` : "";
   app.innerHTML = `<div class="page${qz.th ? " th" : ""}">
   <div class="sticky-top">
@@ -1179,7 +1226,7 @@ function quizDraw(qz) {
       <button class="btn" data-act="prev" ${qz.idx === 0 ? "disabled" : ""}>← Câu trước</button>
       ${last ? '<button class="btn btn-gold" data-act="askSubmit">Nộp bài ✔</button>' : '<button class="btn btn-primary" data-act="next">Câu sau →</button>'}
     </div>
-    <div class="dots">${qz.qs.map((x, i) => `<button class="${qz.answers[x.qi] !== undefined ? "done" : ""} ${i === qz.idx ? "cur" : ""}" data-act="jump" data-i="${i}">${i + 1}</button>`).join("")}</div>
+    ${quizDots(qz)}
   </div>
   ${last ? "" : '<button class="btn btn-gold btn-block" data-act="askSubmit">Nộp bài ✔</button>'}
   </div>`;
@@ -1222,12 +1269,12 @@ function onDraw(qz) {
   Object.keys(qz.au || {}).forEach((i) => ngheVe(qz, i));
 }
 function quizCounters(qz) {
-  const a = quizAnswered(qz), n = qz.qs.length;
+  const a = quizAnswered(qz) + quizNoiXong(qz), n = quizTong(qz);
   const c = document.getElementById("cnt"), p = document.getElementById("prog");
   if (c) c.textContent = `đã làm ${a}/${n}`;
   if (p) p.style.width = (a / n) * 100 + "%";
   const dot = app.querySelectorAll(".dots button")[qz.idx];
-  if (dot) dot.classList.toggle("done", qz.answers[qz.qs[qz.idx].qi] !== undefined);
+  if (dot && qz.idx < qz.qs.length) dot.classList.toggle("done", qz.answers[qz.qs[qz.idx].qi] !== undefined);
 }
 function quizTick(qz) {
   if (qz.done) return;
@@ -1273,9 +1320,10 @@ function dongSheet() {
 }
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && document.getElementById("sheet")) { e.preventDefault(); dongSheet(); } });
 function quizAskSubmit(qz) {
-  const miss = qz.qs.length - quizAnswered(qz);
+  const miss = qz.qs.length - quizAnswered(qz), noiCon = qz.noi ? qz.noi.ds.length - quizNoiXong(qz) : 0;
   openSheet(`<h2>Nộp bài?</h2>
-    ${miss ? `<div class="alert alert-warn">Em còn <b>${miss} câu</b> chưa làm.</div>` : '<p class="muted">Em đã làm hết tất cả các câu.</p>'}
+    ${miss ? `<div class="alert alert-warn">Em còn <b>${miss} câu</b> chưa làm.</div>` : noiCon ? "" : '<p class="muted">Em đã làm hết tất cả các câu.</p>'}
+    ${noiCon ? `<div class="alert alert-warn">🎤 Em chưa quay <b>${noiCon} bài nói</b>. Nộp luôn thì em vẫn quay được sau, ở trang kết quả.</div>` : ""}
     <p class="small muted">Sau khi nộp sẽ không sửa được nữa.</p>
     <div class="row" style="flex-wrap:nowrap"><button class="btn grow" data-act="closeSheet">Làm tiếp</button>
     <button class="btn btn-gold grow" data-act="doSubmit">Nộp bài</button></div>`);
@@ -1332,7 +1380,7 @@ function sResult() {
     ${r.can_retry && !(r.muc_dat && !r.dat) ? `<a class="btn btn-block btn-lg" href="#/start/${r.assignment_id}" style="margin-top:12px">🔁 Làm lại cả bài</a>` : ""}
     <a class="btn btn-ghost btn-block" href="#/" style="margin-top:12px">Về trang chủ</a>`);
   if (r.th) thICan(r.attempt_id);
-  if (!r.vao_nhanh) noiVao(r.attempt_id);
+  noiVao(r.attempt_id);   // ca phien «vao nhanh» (lop nho hay dung) cung quay bai noi
 }
 
 function reviewHtml(d, onlyWrong) {

@@ -471,7 +471,7 @@ async function tEditorTH(id, nh) {
   };
   // Xem thu ca bai: lan luot moi the (the ghep = 1 bang), theo chang
   // bai_noi.js (the bai noi dung chung voi trang HS) chi tai khi can
-  const taiNoi = (chay) => { if (window.noiTheHtml) return chay(); const sc = document.createElement("script"); sc.src = "bai_noi.js?v=2"; sc.onload = chay; sc.onerror = () => toast("Không tải được phần xem thử. Kiểm tra mạng."); document.head.appendChild(sc); };
+  const taiNoi = (chay) => { if (window.noiTheHtml) return chay(); const sc = document.createElement("script"); sc.src = "bai_noi.js?v=3"; sc.onload = chay; sc.onerror = () => toast("Không tải được phần xem thử. Kiểm tra mạng."); document.head.appendChild(sc); };
   const noiXemHtml = (i) => noiTheHtml(goiThe(E.qs[i], i)[0], soNoi(i) - 1, null, `<button type="button" class="btn btn-gold btn-block btn-lg" style="margin-top:10px" disabled>${E.qs[i].ghi === "am_thanh" ? "🔴 Bấm để ghi âm" : "🔴 Bấm để quay"}</button>`);
   ACT.xemCa = () => { if (E.qs.some((q) => q.loai === "noi") && !window.noiTheHtml) return taiNoi(ACT.xemCa);
     if (!E.qs.length) { toast("Đề chưa có câu nào."); return; }

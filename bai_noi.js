@@ -105,9 +105,16 @@ async function sNoi(aid) {
       ${d.ds.map((t, i) => noiTheHtml(t, i, d.da[i], coMay && d.mo ? `<button type="button" class="btn ${d.da[i] ? "" : "btn-gold"} btn-block btn-lg" data-act="noiQuay" data-i="${i}" style="margin-top:10px">${d.da[i] ? "🔁 Quay lại" : t.ghi === "am_thanh" ? "🔴 Bấm để ghi âm" : "🔴 Bấm để quay"}</button>` : "")).join("")}
       <a class="btn btn-ghost btn-block" href="#/" style="margin-top:12px">Về trang chủ</a></div>`;
   };
+  const dungQ = noiGanQuay(d, aid, ve);
+  cleanup = () => { dungQ(); closeSheet(); thDungDoc(); };
+  ve();
+}
+
+// Gan cac nut quay (ACT.noiQuay...) cho bai noi d cua lan lam aid; xong() goi khi nop xong 1 bai. Tra ve ham tat camera.
+// Dung chung: trang #/noi va cau «🎤 Bài nói» ngay trong bai lam (sQuiz).
+function noiGanQuay(d, aid, xong) {
   let luong = null, may = null, hen = null;
   const dung = () => { clearInterval(hen); hen = null; if (may && may.state !== "inactive") { try { may.stop(); } catch (e) { /* bo */ } } if (luong) luong.getTracks().forEach((t) => t.stop()); luong = null; };
-  cleanup = () => { dung(); closeSheet(); thDungDoc(); };
   ACT.noiQuay = async (b) => {
     const i = +b.dataset.i, t = d.ds[i], video = t.ghi !== "am_thanh", han = t.gioi_han_giay || 60;
     const chay = noiCoChay(t), hd = !!(t.luot && t.luot.length);
@@ -214,7 +221,7 @@ async function sNoi(aid) {
         if (r.error) throw new Error(r.error);
         if (r.xoa) client().storage.from("video_noi").remove([r.xoa]).catch(() => {});   // bai quay cu
         d.da[i] = { id: null, giay, sao: null, nhan_xet: null };
-        hdDung(); dung(); closeSheet(); toast("Đã gửi bài nói cho cô 🎉", 3000); ve();
+        hdDung(); dung(); closeSheet(); toast("Đã gửi bài nói cho cô 🎉", 3000); xong();
       } catch (e) {
         document.getElementById("noiMsg").innerHTML = errBox(e);
         nut(`<button type="button" class="btn grow" data-act="noiLai">🔁 Quay lại</button><button type="button" class="btn btn-gold grow" data-act="noiNop">↻ Gửi lại</button>`);
@@ -222,7 +229,7 @@ async function sNoi(aid) {
     };
     batDau();
   };
-  ve();
+  return dung;
 }
 
 /* ---------------- GIAO VIEN: xem + cham ---------------- */
