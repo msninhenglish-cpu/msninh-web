@@ -208,7 +208,7 @@ async function route() {
     // Trang gioi thieu cong khai: chay ca khi chua tai duoc thu vien ket noi
     if (pubRoute(p[0])) return pubRoute(p[0])();
     if (!p[0] && (!S.token || !S.user)) return viewLanding();
-    if (p[0] === "kiemtra" && (!S.token || !S.user)) {
+    if ((p[0] === "kiemtra" || (["start", "noi"].includes(p[0]) && /^\d+$/.test(p[1] || ""))) && (!S.token || !S.user)) {   // link bai co gui: dang nhap roi mo lai
       try { sessionStorage.setItem("kt_sau_dn", location.hash); } catch (e) { /* bo */ }
       S.flash = "Em đăng nhập để làm bài cô giao nhé.";
       return go("#/login");
@@ -375,7 +375,7 @@ function viewLanding() { pubHome(); }
 function sauDangNhap() {
   let h = null;
   try { h = sessionStorage.getItem("kt_sau_dn"); sessionStorage.removeItem("kt_sau_dn"); } catch (e) { /* bo */ }
-  return h && /^#\/kiemtra\/[A-Za-z0-9._-]+$/.test(h) ? h : "#/";
+  return h && (/^#\/kiemtra\/[A-Za-z0-9._-]+$/.test(h) || /^#\/(start|noi)\/\d+$/.test(h)) ? h : "#/";
 }
 
 /* ================= dang nhap ================= */
