@@ -1037,12 +1037,10 @@ async function sQuiz(aid) {
     app.innerHTML = `<div class="center-screen"><div class="login-box">${pageError(e, "#/start/" + aid)}</div></div>`;
     return;
   }
-  // Bai noi (muc 22): la cac cau cuoi ngay trong bai lam (khong co o luot «giai thich tung cau»)
+  // Bai noi (muc 22): la cac cau cuoi ngay trong bai lam (ca luot «giai thich tung cau»)
   let noi = null;
-  if (d.kieu !== "on") {
-    try { const b = await api("student_bai_noi", { p_attempt_id: d.attempt_id }); if (b && b.ds && b.ds.length) { await taiNoiJs(); noi = b; } }
-    catch (e) { /* khong tai duoc phan noi: van lam trac nghiem, nop xong lam phan noi sau */ }
-  }
+  try { const b = await api("student_bai_noi", { p_attempt_id: d.attempt_id }); if (b && b.ds && b.ds.length) { await taiNoiJs(); noi = b; } }
+  catch (e) { /* khong tai duoc phan noi: van lam trac nghiem, nop xong lam phan noi sau */ }
   const key = "kt_att_" + d.attempt_id;
   const local = LS.get(key);
   d.questions = thXep(d.questions);
@@ -1140,7 +1138,8 @@ function quizAnswered(qz) { return qz.on ? qz.qs.filter((q) => qz.on.xong[q.qi])
 function quizTong(qz) { return qz.qs.length + (qz.noi ? qz.noi.ds.length : 0); }
 function quizNoiXong(qz) { return qz.noi ? qz.noi.ds.filter((_, i) => qz.noi.da[i]).length : 0; }
 function quizDots(qz) {
-  return `<div class="dots">${qz.qs.map((x, i) => `<button class="${qz.answers[x.qi] !== undefined ? "done" : ""} ${i === qz.idx ? "cur" : ""}" data-act="jump" data-i="${i}">${i + 1}</button>`).join("")}${qz.noi ? qz.noi.ds.map((_, k) => { const i = qz.qs.length + k; return `<button class="${qz.noi.da[k] ? "done" : ""} ${i === qz.idx ? "cur" : ""}" data-act="jump" data-i="${i}" title="Bài nói ${k + 1}">🎤</button>`; }).join("") : ""}</div>`;
+  const xong = (x) => (qz.on ? qz.on.xong[x.qi] : qz.answers[x.qi] !== undefined);
+  return `<div class="dots">${qz.qs.map((x, i) => `<button class="${xong(x) ? "done" : ""} ${i === qz.idx ? "cur" : ""}" data-act="jump" data-i="${i}">${i + 1}</button>`).join("")}${qz.noi ? qz.noi.ds.map((_, k) => { const i = qz.qs.length + k; return `<button class="${qz.noi.da[k] ? "done" : ""} ${i === qz.idx ? "cur" : ""}" data-act="jump" data-i="${i}" title="Bài nói ${k + 1}">🎤</button>`; }).join("") : ""}</div>`;
 }
 // Cau «🎤 Bài nói» trong bai lam: quay / xem lai / hoan thanh ngay tai day (noiGanQuay o bai_noi.js)
 function quizDrawNoi(qz) {
@@ -1194,7 +1193,7 @@ async function onChon(qz, k) {
   quizDraw(qz);
 }
 function onPhanHoi(qz, q) {
-  const o = qz.on, n = qz.qs.length, conLai = qz.qs.filter((x) => !o.xong[x.qi]).length;
+  const o = qz.on, n = qz.qs.length, conLai = qz.qs.filter((x) => !o.xong[x.qi]).length, noiCon = qz.noi ? qz.noi.ds.findIndex((_, k) => !qz.noi.da[k]) : -1;
   if (!o.xong[q.qi]) return '<p class="small muted center" style="margin:8px 0 0">Chọn đáp án — mỗi câu chỉ chọn <b>1 lần</b>, chọn xong em biết ngay đúng hay chưa.</p>';
   const dung = o.chon[q.qi] === o.dap_an[q.qi];
   const L = q.options.findIndex((x) => x.k === o.dap_an[q.qi]);
@@ -1203,11 +1202,12 @@ function onPhanHoi(qz, q) {
       ${dung || L < 0 ? "" : `<div style="margin-top:6px">Đáp án đúng: <b>${LETTERS[L]}. ${optNgan(q.options[L])}</b></div>`}
       ${o.gt[q.qi] ? `<div style="margin-top:6px">💡 ${fmt(o.gt[q.qi])}</div>` : ""}</div>
     ${conLai ? `<button class="btn btn-primary btn-block btn-lg" data-act="onTiep" data-i="${tiep >= 0 ? tiep : vong}">Câu tiếp →</button>`
+      : noiCon >= 0 ? `<div class="on-fb dung" style="text-align:center"><b>🎉 Em đã làm xong ${n} câu trắc nghiệm!</b><div>Còn phần nói nữa nhé.</div></div><button class="btn btn-gold btn-block btn-lg" data-act="onTiep" data-i="${n + noiCon}">🎤 Sang bài nói →</button>`
       : `<div class="on-fb dung" style="text-align:center"><b>🎉 Em đã làm xong cả ${n} câu!</b></div><button class="btn btn-gold btn-block btn-lg" data-act="doSubmit">Nộp bài ✔</button>`}`;
 }
 function quizDraw(qz) {
-  if (qz.on) return onDraw(qz);
   if (qz.noi && qz.idx >= qz.qs.length) return quizDrawNoi(qz);
+  if (qz.on) return onDraw(qz);
   const q = qz.qs[qz.idx], n = quizTong(qz), last = thNhom(qz, qz.idx)[1] === n - 1;
   const chang = qz.th && q.chang ? `<span class="chang">⭐ Chặng ${q.chang} / ${Math.max(...qz.qs.map((x) => x.chang || 0))}</span>` : "";
   app.innerHTML = `<div class="page${qz.th ? " th" : ""}">
@@ -1235,7 +1235,7 @@ function quizDraw(qz) {
   Object.keys(qz.au || {}).forEach((i) => ngheVe(qz, i));
 }
 function onDraw(qz) {
-  const q = qz.qs[qz.idx], n = qz.qs.length, o = qz.on, xong = o.xong[q.qi];
+  const q = qz.qs[qz.idx], n = quizTong(qz), o = qz.on, xong = o.xong[q.qi];
   app.innerHTML = `<div class="page${qz.th ? " th" : ""}">
   <div class="sticky-top">
     <div class="top"><span class="ttl">💡 ${esc(qz.title)}</span>${quizShowTimer(qz) ? '<span class="timer" id="timer">⏱ --:--</span>' : ""}</div>
@@ -1255,7 +1255,7 @@ function onDraw(qz) {
       <button class="btn" data-act="prev" ${qz.idx === 0 ? "disabled" : ""}>← Câu trước</button>
       <button class="btn" data-act="next" ${qz.idx === n - 1 ? "disabled" : ""}>Câu sau →</button>
     </div>
-    <div class="dots">${qz.qs.map((x, i) => `<button class="${o.xong[x.qi] ? "done" : ""} ${i === qz.idx ? "cur" : ""}" data-act="jump" data-i="${i}">${i + 1}</button>`).join("")}</div>
+    ${quizDots(qz)}
   </div>
   <button class="btn btn-ghost btn-block" data-act="askSubmit">Nộp bài ✔</button>
   </div>`;
