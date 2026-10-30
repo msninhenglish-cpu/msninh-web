@@ -222,7 +222,7 @@ async function route() {
       if (p[0] !== "t") return go("#/t");
       switch (p[1]) {
         case undefined: return tHome();
-        case "new": return tAssignForm(null, query.get("quiz"));
+        case "new": return tAssignForm(null, query.get("quiz"), Number(query.get("tg")) || null);
         case "a": return p[3] === "edit" ? tAssignForm(+p[2]) : tResults(+p[2]);
         case "at": return tAttempt(+p[2]);
         case "quizzes": return tQuizzes();
@@ -1791,7 +1791,7 @@ function datChepLink() {
 }
 
 /* ---------------- giao bai / sua bai giao ---------------- */
-async function tAssignForm(id, quizId) {
+async function tAssignForm(id, quizId, thoiGian) {
   app.innerHTML = tShell("home", spinner());
   ACT.retry = () => route();
   let ov;
@@ -1800,7 +1800,7 @@ async function tAssignForm(id, quizId) {
   if (id && !a) { app.querySelector("main").innerHTML = errBox("Không tìm thấy bài giao."); return; }
   if (!id && !ov.quizzes.length) { app.querySelector("main").innerHTML = `<div class="alert alert-warn">Chưa có đề nào. <a href="#/t/q/new">Soạn đề trước</a>.</div>`; return; }
   if (!ov.classes.length) { app.querySelector("main").innerHTML = `<div class="alert alert-warn">Chưa có lớp nào. <a href="#/t/classes">Tạo lớp trước</a>.</div>`; return; }
-  const v = a || { mode: "homework", on_tung_cau: false, muc_dat: null, khi_chua_dat: "diem", time_limit_min: null, max_attempts: null, shuffle_questions: true, shuffle_options: true, show_answers: "after_submit", class_ids: [], open_at: new Date().toISOString(), due_at: null };
+  const v = a || { mode: "homework", on_tung_cau: false, muc_dat: null, khi_chua_dat: "diem", time_limit_min: thoiGian || null, max_attempts: null, shuffle_questions: true, shuffle_options: true, show_answers: "after_submit", class_ids: [], open_at: new Date().toISOString(), due_at: null };
   const cls = v.class_ids || [];
   app.querySelector("main").innerHTML = `
     <a href="${id ? "#/t/a/" + id : "#/t"}" class="small">‹ Quay lại</a>
@@ -2048,7 +2048,7 @@ async function tQuizzes() {
   ACT.retry = () => route();
   let ov, bt;
   try { [ov, bt] = await Promise.all([api("t_overview"), api("t_ds_bai_thu")]); } catch (e) { app.querySelector("main").innerHTML = pageError(e); return; }
-  app.querySelector("main").innerHTML = `<div class="row between" style="margin-bottom:12px"><h1 style="margin:0">Kho đề</h1><div class="row"><a class="btn" href="#/t/nh">📚 Kho câu hỏi</a><a class="btn" href="#/t/qth/new">🧒 + Đề tiểu học</a><a class="btn btn-primary" href="#/t/q/new">+ Soạn đề mới</a></div></div>
+  app.querySelector("main").innerHTML = `<div class="row between" style="margin-bottom:12px"><h1 style="margin:0">Kho đề</h1><div class="row"><a class="btn" href="#/t/nh">📚 Kho câu hỏi</a><a class="btn" href="#/t/qth/new">🧒 + Đề tiểu học</a><button type="button" class="btn" data-act="aiDe">🤖 Tạo đề từ đoạn văn (AI)</button><a class="btn btn-primary" href="#/t/q/new">+ Soạn đề mới</a></div></div>
     ${baiThuHtml(ov.quizzes, bt)}
     <div class="khoi-o" id="khoiO"></div>
     <div id="dsDe"></div>
@@ -2071,6 +2071,7 @@ async function tQuizzes() {
     try { const r = await api("t_dat_ma_web", { p_quiz_id: Number(b.dataset.id), p_ma: moi }); const q = S.ov && S.ov.quizzes.find((x) => x.id === Number(b.dataset.id)); if (q) q.ma_web = r.ma_web; toast("Đã đổi mã: " + r.ma_web + ". Link cũ không dùng được nữa."); veK(); }
     catch (e) { toast(e.message, 5000); }
   };
+  ACT.aiDe = () => aiMoForm(chonK);
   const veK = () => {
     LS.set("khoDeKhoi", chonK);
     document.getElementById("khoiO").innerHTML = dsK.map((k) => `<button type="button" class="khoi-nut ${k === chonK ? "chon" : ""} ${demK[k] ? "" : "rong"}" data-act="chonKhoi" data-k="${k}"><b>${k === "0" ? "Chưa xếp khối" : "Khối " + k}</b><span>${demK[k] || 0} đề</span></button>`).join("");
@@ -2224,6 +2225,7 @@ async function tEditor(id) {
   app.innerHTML = tShell("quizzes", spinner());
   ACT.retry = () => route();
   const E = { id, title: "", qs: [], dirty: false };
+  if (!id && S.deMoi) { Object.assign(E, S.deMoi, { dirty: true }); S.deMoi = null; }   // de AI vua tao: chua luu
   if (id) {
     try {
       const q = await api("t_get_quiz", { p_id: id });
@@ -2239,8 +2241,12 @@ async function tEditor(id) {
   cleanup = () => window.removeEventListener("beforeunload", onUnload);
   const mark = () => { E.dirty = true; };
 
+  // Doan van dung chung: moi cau cung 1 doan_van (de doc hieu / de AI) -> sua 1 lan cho ca de; null = khong co
+  const dvChung = () => { const d = E.qs.length && E.qs[0].doan_van; return d && E.qs.every((q) => q.doan_van === d) ? d : null; };
+  ACT["in:dvChung"] = (el) => { E.qs.forEach((q) => { q.doan_van = el.value; }); mark(); };
+  const AI_TEN = { "so-lieu": "Số liệu", "suy-luan": "Suy luận", "tu-vung": "Từ vựng", "cau-truc": "Cấu trúc", "y-chinh": "Ý chính" };
   const qCard = (q, i) => `<div class="card qedit" id="q${i}">
-    <div class="row between"><b>Câu ${i + 1}</b><div class="row" style="gap:2px">
+    <div class="row between"><b>Câu ${i + 1}${q.skill && AI_TEN[q.skill] ? ` <span class="badge">${AI_TEN[q.skill]}</span>` : ""}</b><div class="row" style="gap:2px">
       <button type="button" class="icon-btn" data-act="up" data-i="${i}" title="Lên" ${i === 0 ? "disabled" : ""}>↑</button>
       <button type="button" class="icon-btn" data-act="down" data-i="${i}" title="Xuống" ${i === E.qs.length - 1 ? "disabled" : ""}>↓</button>
       <button type="button" class="icon-btn" data-act="qdel" data-i="${i}" title="Xoá câu" style="color:var(--bad)">🗑</button></div></div>
@@ -2263,6 +2269,8 @@ async function tEditor(id) {
     <div style="max-width:820px">
     <div class="field"><label class="f">Tên đề</label><input class="input" id="title" data-in="title" value="${esc(E.title)}" placeholder="Ví dụ: Unit 3 – Grade 8 – Vocabulary"></div>
     ${khoiDeHtml(E.khoi)}
+    ${E.ai ? `<div class="alert alert-ok">🤖 Claude đã soạn <b>${E.qs.length} câu</b>${E.ai.bo ? ` (bỏ ${E.ai.bo} câu lỗi)` : ""}. Cô đọc lại từng câu, sửa nếu cần, rồi bấm <b>Lưu &amp; giao bài</b>${E.thoi_gian ? ` (thời gian ${E.thoi_gian} phút đã điền sẵn)` : ""}. Hôm nay còn ${E.ai.con_lai} lần tạo bằng AI.</div>` : ""}
+    ${dvChung() !== null ? `<div class="field"><label class="f">📄 Đoạn văn dùng chung <span class="faint">(học sinh thấy phía trên mỗi câu)</span></label><textarea class="input" rows="8" data-in="dvChung">${esc(dvChung())}</textarea></div>` : ""}
     <details class="box"><summary>📋 Cách 1: Dán câu hỏi dạng chữ</summary>
       <p class="small muted">Mỗi câu bắt đầu bằng số (<b>1.</b> hoặc <b>Câu 1:</b>), các lựa chọn bắt đầu bằng <b>A.</b> <b>B.</b> … (một dòng hoặc nhiều dòng). Đánh dấu đáp án đúng bằng dấu <b>*</b> trước chữ cái (vd <b>*B. goes</b>) hoặc thêm dòng <b>Đáp án: B</b>. Dòng không đánh số được coi là hướng dẫn cho các câu sau nó.</p>
       <pre class="prompt">Choose the best answer.
@@ -2353,14 +2361,15 @@ D. playing
       return;
     }
     try {
-      const qs = E.qs.map((q) => ({ stt: q.stt, question: q.question.trim(), options: q.options.map((o) => String(o).trim()), correct: q.correct, explanation: (q.explanation || "").trim(), instruction: (q.instruction || "").trim() }));
+      // giu doan van chung (de doc hieu) — trinh soan chua sua doan van, nhung khong duoc lam mat
+      const qs = E.qs.map((q) => Object.assign({ stt: q.stt, question: q.question.trim(), options: q.options.map((o) => String(o).trim()), correct: q.correct, explanation: (q.explanation || "").trim(), instruction: (q.instruction || "").trim() }, q.doan_van ? { doan_van: q.doan_van } : {}));
       const r = await api("t_save_quiz", { p_id: E.id, p_title: E.title, p_questions: qs });
       E.id = r.id; E.dirty = false;
       await luuKhoiDe(r.id);
       msg.innerHTML = "";
       toast("Đã lưu đề");
       if (r.cham_lai && r.cham_lai.thay_doi) moDe(() => baoChamLai(r.cham_lai));
-      if (thenAssign) go("#/t/new?quiz=" + r.id);
+      if (thenAssign) go("#/t/new?quiz=" + r.id + (E.thoi_gian ? "&tg=" + E.thoi_gian : ""));   // de AI: dien san thoi gian
       else if (!id) { skipRoute = true; location.hash = "#/t/q/" + r.id; prevHash = location.hash; }
     } catch (e) { msg.innerHTML = errBox(e); msg.scrollIntoView({ behavior: "smooth", block: "center" }); }
   });
@@ -2724,6 +2733,43 @@ ACT_CHUNG.tbHet = async () => {
   const b = document.querySelector('[data-act="tbHet"]'); if (b) b.remove();
   toast("Đã đánh dấu đã xem tất cả");
 };
+
+/* ---------------- 🤖 Tao de tu doan van bang AI (muc 25) ---------------- */
+// Goi Edge Function «tao-de-ai» (khoa Claude nam o Supabase, khong o trinh duyet) -> mo trinh soan de moi da dien san
+const AI_DANG = [["so-lieu", "Số liệu"], ["suy-luan", "Suy luận"], ["tu-vung", "Từ vựng"], ["cau-truc", "Cấu trúc"], ["y-chinh", "Ý chính"]];
+function aiMoForm(khoi) {
+  openSheet(`<h2 style="margin-top:0">🤖 Tạo đề từ đoạn văn (AI)</h2>
+    <p class="small muted" style="margin-top:0">Cô dán bài đọc / hội thoại → Claude soạn câu hỏi ABCD, đáp án, giải thích tiếng Việt → cô xem lại, sửa rồi mới lưu. Câu hỏi chỉ hỏi trong đoạn văn.</p>
+    <div class="field"><label class="f">Đoạn văn <span class="faint" id="aiDem">0 / 6000 ký tự</span></label>
+      <textarea class="input" id="aiDoan" rows="9" maxlength="6000" data-in="aiDem" placeholder="Dán bài đọc hoặc đoạn hội thoại (tiếng Anh) vào đây…"></textarea></div>
+    <div class="row" style="gap:8px;flex-wrap:wrap">
+      <label class="small">Khối <select class="input" id="aiKhoi" style="width:auto">${[2, 3, 4, 5, 6, 7, 8, 9].map((k) => `<option ${String(k) === String(khoi) ? "selected" : ""}>${k}</option>`).join("")}</select></label>
+      <label class="small">Số câu <input class="input" id="aiSo" type="number" min="5" max="40" value="20" style="width:80px"></label>
+      <label class="small">Thời gian <input class="input" id="aiTg" type="number" min="0" max="180" value="20" style="width:80px"> phút</label>
+      <label class="small grow">Chủ đề <input class="input" id="aiChuDe" maxlength="120" placeholder="vd: Unit 4 – My neighbourhood"></label></div>
+    <div class="small" style="margin:8px 0">Dạng câu hỏi (chia đều): ${AI_DANG.map(([k, t]) => `<label class="check" style="display:inline-flex;margin-right:10px"><input type="checkbox" class="aiDang" value="${k}" checked> ${t}</label>`).join("")}</div>
+    <div id="aiMsg"></div>
+    <div class="row" style="flex-wrap:nowrap"><button type="button" class="btn grow" data-act="closeSheet">Huỷ</button>
+      <button type="button" class="btn btn-gold grow" data-act="aiTao">🤖 Tạo câu hỏi</button></div>`);
+  ACT["in:aiDem"] = (el) => { document.getElementById("aiDem").textContent = `${el.value.length} / 6000 ký tự`; };
+  ACT.aiTao = (b) => busy(b, async () => {
+    const msg = document.getElementById("aiMsg");
+    const p = { p_token: S.token, doan_van: document.getElementById("aiDoan").value, khoi: document.getElementById("aiKhoi").value,
+      so_cau: Number(document.getElementById("aiSo").value) || 20, chu_de: document.getElementById("aiChuDe").value,
+      dang: [...document.querySelectorAll(".aiDang:checked")].map((x) => x.value) };
+    msg.innerHTML = `<p class="small muted">⏳ Claude đang soạn ${p.so_cau} câu… thường mất 30 giây – 2 phút, cô đợi chút nhé.</p>`;
+    let r;
+    try {
+      const res = await fetch(String(CFG.SUPABASE_URL).replace(/\/$/, "") + "/functions/v1/tao-de-ai", {
+        method: "POST", headers: { "Content-Type": "application/json", apikey: CFG.SUPABASE_KEY, Authorization: "Bearer " + CFG.SUPABASE_KEY }, body: JSON.stringify(p) });
+      r = await res.json().catch(() => ({ error: "Máy chủ trả kết quả lạ (" + res.status + ")." }));
+    } catch (e) { r = { error: NET_ERR }; }
+    if (!r || r.error || !r.ok) { msg.innerHTML = errBox(r && r.error ? r.error : "Không tạo được đề."); return; }
+    S.deMoi = { title: r.tieu_de || (p.chu_de ? p.chu_de + " – Grade " + p.khoi : "Reading – Grade " + p.khoi), khoi: Number(p.khoi), qs: r.cau_hoi,
+      thoi_gian: Number(document.getElementById("aiTg").value) || 0, ai: { bo: r.bo, con_lai: r.con_lai } };
+    closeSheet(); go("#/t/q/new");
+  });
+}
 
 /* ---------------- phieu dang ky tu van (tu website) ---------------- */
 async function tDangKy(query) {
