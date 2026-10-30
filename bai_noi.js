@@ -10,13 +10,17 @@ const NOI_MAX = 8388608;   // 8 MB / file (gioi han bucket)
 const NOI_TOC = { cham: 950, vua: 650, nhanh: 430 };
 const NOI_TOC_TEN = [["cham", "🐢 Chậm"], ["vua", "🚶 Vừa"], ["nhanh", "🐇 Nhanh"]];
 const noiCoChay = (t) => !!t.van_ban_mau && t.chu_chay !== "tat" && ["doan", "hoi_thoai", "chant", "bai_hat"].includes(t.muc_noi);
+// Tach dong: xuong dong cua co (fmt doi \n -> <br>, phai doi lai truoc khi lay chu) + moi cau (. ? !) mot dong cho de doc theo.
+// Nhip moi tu theo so am tiet (nhom nguyen am), dung lau hon o dau phay / het cau / cuoi dong.
 function noiChayHtml(t) {
-  const tam = document.createElement("div"); tam.innerHTML = fmt(t.van_ban_mau);
+  const tam = document.createElement("div"); tam.innerHTML = fmt(t.van_ban_mau).replace(/<br\s*\/?>/gi, "\n");
   let k = 0;
-  return tam.textContent.split("\n").map((d) => {
-    const tu = d.trim().split(/\s+/).filter(Boolean);
+  const dong = tam.textContent.split("\n").flatMap((d) => d.split(/(?<=[.!?]["”’)]*)\s+(?=\S)/)).map((d) => d.trim()).filter(Boolean);
+  return dong.map((d) => {
+    const tu = d.split(/\s+/).filter(Boolean);
     return tu.map((w, j) => {
-      const nang = 1 + (/[.!?]["”’)]*$/.test(w) ? 0.8 : /[,;:]$/.test(w) ? 0.4 : 0) + (j === tu.length - 1 ? 0.5 : 0) + (w.length > 7 ? 0.3 : 0);
+      const amTiet = Math.max(1, (w.toLowerCase().replace(/[^a-z]/g, "").match(/[aeiouy]+/g) || []).length);
+      const nang = 0.7 + 0.3 * amTiet + (/[.!?]["”’)]*$/.test(w) ? 0.8 : /[,;:]$/.test(w) ? 0.4 : 0) + (j === tu.length - 1 ? 0.4 : 0);
       return `<span class="nc-tu" data-k="${k++}" data-w="${nang.toFixed(2)}">${esc(w)}</span>`;
     }).join(" ");
   }).join("<br>");

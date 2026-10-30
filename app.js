@@ -870,7 +870,7 @@ function taiNoiJs() {
   if (window.sNoi) return Promise.resolve();
   return new Promise((ok, loi) => {
     const s = document.createElement("script");
-    s.src = "bai_noi.js?v=3";
+    s.src = "bai_noi.js?v=4";
     s.onload = () => ok(); s.onerror = () => loi(new Error("Không tải được phần bài nói."));
     document.head.appendChild(s);
   });
@@ -917,7 +917,7 @@ function moTH(chay) {
   if (window.tEditorTH) return chay();
   app.innerHTML = tShell("quizzes", spinner());
   const s = document.createElement("script");
-  s.src = "tieu_hoc.js?v=9";
+  s.src = "tieu_hoc.js?v=10";
   s.onload = () => chay();
   s.onerror = () => { const m = app.querySelector("main"); if (m) m.innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
   document.head.appendChild(s);
@@ -1448,6 +1448,7 @@ const NGUON = {
   tu_vung: { icon: "🔤", nhan: "Từ vựng", mau: "#1fa971" },
   online: { icon: "💻", nhan: "Online", mau: "#f59e0b" },
   mieng: { icon: "🎤", nhan: "Kiểm tra miệng", mau: "#e5487f" },
+  noi: { icon: "🎥", nhan: "Bài nói (video)", mau: "#8b5cf6" },
 };
 // Tai khoan nhan hoc phi theo khoi (co duyet 11/10/2026)
 const NGAN_HANG = {
@@ -1462,7 +1463,7 @@ function tien(n) { return n === null || n === undefined ? "—" : Number(n).toLo
 function thangVN(t) { const [y, m] = String(t).split("-"); return `Tháng ${Number(m)}/${y}`; }
 function ngayVN(iso) { const d = new Date(iso); return `${WD[d.getDay()]} ${pad(d.getDate())}/${pad(d.getMonth() + 1)}`; }
 function ngayDate(s) { const [y, m, d] = String(s).slice(0, 10).split("-").map(Number); return new Date(y, m - 1, d); }
-function diemHien(r) { return r.nguon === "mieng" ? `${fmtScore(r.diem10)}<small>★</small>` : fmtScore(r.diem10); }
+function diemHien(r) { return r.nguon === "mieng" || r.nguon === "noi" ? `${fmtScore(r.diem10)}<small>★</small>` : fmtScore(r.diem10); }
 
 async function layDash(force) {
   if (!force && S.dash && Date.now() - S.dashAt < 60000) return S.dash;
@@ -1503,7 +1504,7 @@ function sResults() {
           return `<div class="card kq ${tap ? "tap" : ""}" ${tap}>
             <span class="kq-ic" style="background:${n.mau}1f">${n.icon}</span>
             <div class="grow"><b>${esc(r.ten)}</b><div class="small muted">${meta.join(" · ")}</div>
-              ${r.nguon === "mieng" && r.ghi_chu ? `<div class="quote">“${esc(r.ghi_chu)}”</div>` : ""}</div>
+              ${(r.nguon === "mieng" || r.nguon === "noi") && r.ghi_chu ? `<div class="quote">${r.nguon === "noi" ? "💬 Cô nhận xét: " : ""}“${esc(r.ghi_chu)}”</div>` : ""}</div>
             <span class="score ${scoreCls(r.diem10)}">${diemHien(r)}</span></div>`;
         }).join("") || '<div class="empty">🌱 Chưa có kết quả nào. Làm bài xong điểm sẽ hiện ở đây.</div>'}`;
     };
@@ -1593,7 +1594,7 @@ function nxCss() {
 }
 // Bao cao thang (dung chung: HS xem, GV xem / in). b = ket qua _bao_cao_thang
 function bcTheHtml(b, tieuDe) {
-  const NG = { omr: "Phiếu chấm", tu_vung: "Từ vựng", online: "Online", mieng: "Kiểm tra miệng" };
+  const NG = { omr: "Phiếu chấm", tu_vung: "Từ vựng", online: "Online", mieng: "Kiểm tra miệng", noi: "Bài nói (video)" };
   const dd = b.diem_danh || {}, hp = b.hoc_phi, diem = b.diem || {};
   return `<div class="card nx bc">
     <h3 style="margin:0">${tieuDe ? esc(tieuDe) + " · " : ""}Báo cáo ${esc(thangVN(b.thang).toLowerCase())}</h3>
@@ -1602,7 +1603,7 @@ function bcTheHtml(b, tieuDe) {
       <div><b>${dd.co_mat || 0}</b><span>buổi có mặt</span></div>
       <div><b style="${dd.vang ? "color:var(--bad)" : ""}">${dd.vang || 0}</b><span>buổi vắng</span></div>
       ${hp ? `<div><b style="font-size:16px">${hp.da_dong ? "✓ Đã đóng" : tien(hp.thanh_tien)}</b><span>học phí${hp.so_buoi !== null && hp.so_buoi !== undefined ? " · " + hp.so_buoi + " buổi" : ""}</span></div>` : ""}</div>
-    ${Object.keys(diem).length ? `<div class="section-title" style="margin-top:10px">Điểm theo loại bài</div>${Object.entries(diem).map(([k, v]) => `<div class="row between nx-kq"><span>${esc(NG[k] || k)} <span class="small muted">(${v.so_bai} bài)</span></span><b>${k === "mieng" ? fmtScore(v.tb) + "★" : fmtScore(v.tb)}</b></div>`).join("")}` : '<p class="small muted">Chưa có bài làm trong tháng.</p>'}
+    ${Object.keys(diem).length ? `<div class="section-title" style="margin-top:10px">Điểm theo loại bài</div>${Object.entries(diem).map(([k, v]) => `<div class="row between nx-kq"><span>${esc(NG[k] || k)} <span class="small muted">(${v.so_bai} bài)</span></span><b>${k === "mieng" || k === "noi" ? fmtScore(v.tb) + "★" : fmtScore(v.tb)}</b></div>`).join("")}` : '<p class="small muted">Chưa có bài làm trong tháng.</p>'}
     ${dd.ngay_vang && dd.ngay_vang.length ? `<p class="small muted">Vắng: ${dd.ngay_vang.map((n) => esc(nxNgay(n))).join(", ")}</p>` : ""}
     ${(b.nhan_xet_tuan || []).length ? `<div class="section-title" style="margin-top:10px">Nhận xét các tuần</div>${b.nhan_xet_tuan.map((n) => `<div class="nx-kq"><b>Tuần ${nxNgay(n.tuan_tu)} – ${nxNgay(n.tuan_den)}</b>
         ${n.noi_dung && n.noi_dung.thai_do === "tot" ? ' <span class="badge hw">Thái độ tốt</span>' : n.noi_dung && n.noi_dung.thai_do === "can_co_gang" ? ' <span class="badge gold">Cần cố gắng</span>' : ""}${n.cong_khai === false ? ' <span class="badge">Nháp</span>' : ""}
