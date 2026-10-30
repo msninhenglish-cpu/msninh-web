@@ -8,13 +8,19 @@
 const TH_LOAI = {
   hinh: "🖼 Nhìn hình chọn đáp án", dien: "📝 Điền vào đoạn văn", nghe: "🎧 Nghe chọn đáp án", chon: "🔤 Chọn đáp án thường",
   nghe_chu: "🔡 Nghe âm → chạm chữ cái", dung_sai: "✅ Đúng / Sai với tranh", ghep: "🔗 Nối câu với tranh", dien_chu: "✏️ Điền chữ cái thiếu",
+  noi: "🎤 Nói (quay video)",
 };
 const TH_LENH = {
   hinh: "Nhìn hình và chọn đáp án đúng.", dien: "Đọc đoạn văn và chọn từ đúng điền vào chỗ trống.",
   nghe: "Nghe và chọn đáp án đúng.", chon: "Chọn đáp án đúng.", nghe_chu: "Nghe và chạm vào chữ cái đúng.",
   dung_sai: "Nhìn tranh rồi chọn Đúng ✓ hoặc Sai ✗.", ghep: "Đọc câu và nối với tranh đúng.", dien_chu: "Chạm chữ cái để điền vào chỗ trống.",
+  noi: "Bấm 🔴 rồi nói to, rõ theo gợi ý.",
 };
-const TH_KN = { hinh: "doc", dien: "doc", nghe: "nghe", chon: "doc", nghe_chu: "nghe", dung_sai: "doc", ghep: "doc", dien_chu: "viet" };
+const TH_KN = { hinh: "doc", dien: "doc", nghe: "nghe", chon: "doc", nghe_chu: "nghe", dung_sai: "doc", ghep: "doc", dien_chu: "viet", noi: "noi" };
+// Bai noi (muc 22): khong co lua chon, luu rieng (bai_noi), co cham sao
+const TH_MUC_NOI = { chu: "Chữ cái", tu: "Từ theo tranh", cau: "Câu theo tranh", doan: "Đọc đoạn văn", hoi_thoai: "Hội thoại", chant: "Chant", bai_hat: "Bài hát", hoi_dap: "Đối đáp (hỏi – trả lời)" };
+const TH_CHU_CHAY = { cham: "🐢 Chữ chạy chậm", vua: "🚶 Chữ chạy vừa", nhanh: "🐇 Chữ chạy nhanh", tat: "Không chạy chữ" };
+const TH_NOI_CHAY = ["doan", "hoi_thoai", "chant", "bai_hat"];
 const TH_MUC = { "": "— Mức —", nhan_biet: "Nhận biết", thong_hieu: "Thông hiểu", van_dung: "Vận dụng" };
 const TH_KYN = { "": "— Kỹ năng —", nghe: "Nghe", noi: "Nói", doc: "Đọc", viet: "Viết" };
 const TH_CO_NGHE = ["nghe", "nghe_chu", "dung_sai"];
@@ -58,6 +64,7 @@ async function thTaiAnh(file) {
 function thVaoThe(qs) {
   const ds = [];
   qs.forEach((x) => {
+    if (x.loai === "noi") { ds.push(Object.assign({ goi_y: "", van_ban_mau: "", gioi_han_giay: 60, ghi: "video", anh: null }, x)); return; }
     const q = Object.assign({ loai: "chon" }, x, { anh_lc: x.options.map((_, j) => (x.anh_lc || [])[j] || null) });
     if (q.loai === "ghep") {
       const truoc = ds[ds.length - 1], cap = { cau: q.question, anh: q.anh_lc[q.correct] || null, stt: q.stt };
@@ -95,8 +102,8 @@ async function tEditorTH(id, nh) {
     try {
       const q = await api("t_get_quiz", { p_id: id });
       if (!q) throw new Error("Không tìm thấy đề.");
-      E.title = q.title; E.am_thanh = q.am_thanh || []; E.i_can = (q.i_can || []).join("\n");
-      E.qs = thVaoThe(q.questions);
+      E.title = q.title; E.am_thanh = q.am_thanh || []; E.i_can = (q.i_can || []).join("\n"); E.khoi = q.khoi;
+      E.qs = thVaoThe(q.questions.concat(q.bai_noi || []));
     } catch (e) { app.querySelector("main").innerHTML = pageError(e, "#/t/quizzes"); return; }
   }
   leaveGuard = () => !E.dirty || confirm("Đề chưa lưu. Rời trang và bỏ các thay đổi?");
@@ -106,8 +113,9 @@ async function tEditorTH(id, nh) {
   thGanNut();
   const mark = () => { E.dirty = true; };
   // so cau (the ghep chiem nhieu cau); de tu may cham co stt thi theo stt
-  const soCau = (i) => { const q = E.qs[i]; if (q.stt) return q.stt; let n = 1; for (let k = 0; k < i; k++) n += E.qs[k].loai === "ghep" ? E.qs[k].cap.length : 1; return n; };
-  const nhanCau = (i) => { const q = E.qs[i], a = soCau(i); return q.loai === "ghep" && q.cap.length > 1 ? `Câu ${a}–${a + q.cap.length - 1}` : `Câu ${a}`; };
+  const soCau = (i) => { const q = E.qs[i]; if (q.stt) return q.stt; let n = 1; for (let k = 0; k < i; k++) n += E.qs[k].loai === "ghep" ? E.qs[k].cap.length : E.qs[k].loai === "noi" ? 0 : 1; return n; };
+  const soNoi = (i) => E.qs.slice(0, i).filter((q) => q.loai === "noi").length + 1;   // bai noi danh so rieng
+  const nhanCau = (i) => { const q = E.qs[i], a = soCau(i); return q.loai === "noi" ? `🎤 Bài nói ${soNoi(i)}` : q.loai === "ghep" && q.cap.length > 1 ? `Câu ${a}–${a + q.cap.length - 1}` : `Câu ${a}`; };
   // the i dung chung doan van voi the truoc (cung dang «dien», cung noi dung)
   const chungTruoc = (i) => i > 0 && E.qs[i].loai === "dien" && E.qs[i - 1].loai === "dien" && E.qs[i].doan_van && E.qs[i].doan_van === E.qs[i - 1].doan_van;
   const dauNhom = (i) => { while (chungTruoc(i)) i--; return i; };
@@ -163,7 +171,38 @@ async function tEditorTH(id, nh) {
     return `<div class="field"><label class="f">Câu hỏi <span class="faint">(bỏ trống = «${esc(thCauMacDinh(q, soCau(i)))}»; dùng &lt;b&gt; &lt;u&gt; &lt;i&gt;)</span></label><textarea class="input" rows="2" data-in="qf" data-i="${i}" data-f="question">${esc(q.question || "")}</textarea></div>
       ${phanLuaChon(q, i)}`;
   };
-  const qCard = (q, i) => `<div class="card qedit" id="q${i}">
+  // The bai noi: tranh / goi y / van ban mau / gioi han giay / quay video hay chi ghi am
+  const noiCard = (q, i) => `<div class="card qedit" id="q${i}" style="border-left:5px solid var(--warn)">
+    <div class="row between"><b>${nhanCau(i)}</b><div class="row" style="gap:2px">
+      <button type="button" class="btn btn-sm" data-act="xem" data-i="${i}" title="Xem thử như học sinh">👀 Xem thử</button>
+      <button type="button" class="icon-btn" data-act="up" data-i="${i}" title="Lên" ${i === 0 ? "disabled" : ""}>↑</button>
+      <button type="button" class="icon-btn" data-act="down" data-i="${i}" title="Xuống" ${i === E.qs.length - 1 ? "disabled" : ""}>↓</button>
+      <button type="button" class="icon-btn" data-act="qdel" data-i="${i}" title="Xoá" style="color:var(--bad)">🗑</button></div></div>
+    <div class="small muted" style="margin:4px 0 8px">Học sinh làm sau phần trắc nghiệm: bấm 🔴 quay, xem lại, quay lại, «Hoàn thành». <b>Không tính vào điểm tự chấm</b> — cô chấm 1–10 sao + nhận xét.</div>
+    <div class="field"><label class="f">Dạng câu</label><select class="input" data-ch="loai" data-i="${i}">${Object.entries(TH_LOAI).map(([k, t]) => `<option value="${k}" ${q.loai === k ? "selected" : ""}>${t}</option>`).join("")}</select></div>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px">${chon("muc_noi", i, TH_MUC_NOI, q.muc_noi)}${chon("muc", i, TH_MUC, q.muc)}${chon("chang", i, { "": "— Chặng —", 1: "Chặng 1", 2: "Chặng 2", 3: "Chặng 3", 4: "Chặng 4" }, q.chang)}
+      ${chon("ghi", i, { video: "📹 Quay video", am_thanh: "🎙 Chỉ ghi âm" }, q.ghi)}
+      <label class="small">tối đa <input class="input" type="number" min="10" max="120" step="5" data-in="qf" data-f="gioi_han_giay" data-i="${i}" value="${q.gioi_han_giay || 60}" style="width:80px"> giây</label></div>
+    <div class="field"><label class="f">Lệnh <span class="faint">(bé bấm 🔊 để nghe)</span></label><input class="input" data-in="qf" data-i="${i}" data-f="instruction" value="${esc(q.instruction || "")}" placeholder="${esc(TH_LENH.noi)}"></div>
+    <div class="field"><label class="f">Tranh <span class="faint">(nói theo tranh — không bắt buộc)</span></label><div class="th-anh-o">${anhNut(q.anh, "de", i, -1, true)}</div></div>
+    ${q.muc_noi === "hoi_dap" ? luotHtml(q, i) : `<div class="field"><label class="f">Gợi ý hiện cho bé <span class="faint">(tiếng Việt hoặc Anh, vd: Nói tên con vật)</span></label><input class="input" data-in="qf" data-i="${i}" data-f="goi_y" value="${esc(q.goi_y || "")}"></div>
+    <div class="field"><label class="f">Câu / đoạn mẫu <span class="faint">(bé đọc theo; nút 🔊 đọc mẫu bằng giọng máy)</span></label><textarea class="input" rows="3" data-in="qf" data-i="${i}" data-f="van_ban_mau" placeholder="vd: It's a cat.  /  A, a, apple. B, b, ball.">${esc(q.van_ban_mau || "")}</textarea></div>
+    ${TH_NOI_CHAY.includes(q.muc_noi) ? `<div class="row small" style="gap:6px">Khi quay, đoạn mẫu ${chon("chu_chay", i, TH_CHU_CHAY, q.chu_chay || "cham")} <span class="muted">(tô sáng từng từ cho bé đọc theo; bé tự đổi tốc độ được)</span></div>` : ""}`}
+  </div>`;
+  // Doi dap: danh sach luot hoi -> goi y tra loi
+  const luotHtml = (q, i) => {
+    const ds = q.luot && q.luot.length ? q.luot : (q.luot = [{ hoi: "", tra_loi_goi_y: "" }]);
+    return `<label class="f">Các lượt hỏi – đáp <span class="faint">(máy đọc câu hỏi, hiện gợi ý, bé trả lời — tất cả trong một video)</span></label>
+      ${ds.map((l, j) => `<div class="th-lc" style="grid-template-columns:auto 1fr 1fr auto"><span class="ghep-so">${j + 1}</span>
+        <input class="input" data-in="luot" data-i="${i}" data-j="${j}" data-f="hoi" value="${esc(l.hoi || "")}" placeholder="Hỏi: Is she flying a kite?">
+        <input class="input" data-in="luot" data-i="${i}" data-j="${j}" data-f="tra_loi_goi_y" value="${esc(l.tra_loi_goi_y || "")}" placeholder="Gợi ý: Yes, she is.">
+        <button type="button" class="icon-btn" data-act="luotXoa" data-i="${i}" data-j="${j}" ${ds.length <= 1 ? "disabled" : ""} title="Xoá lượt">🗑</button></div>`).join("")}
+      ${ds.length < 12 ? `<button type="button" class="btn btn-sm" data-act="luotThem" data-i="${i}">+ Thêm lượt</button>` : ""}
+      <div class="row small" style="gap:10px;margin-top:8px"><label class="check"><input type="checkbox" data-ch="an_goi_y" data-i="${i}" ${q.an_goi_y ? "checked" : ""}> Ẩn gợi ý (mức khó)</label>
+        ${chon("tu_chuyen_giay", i, { "": "Bé bấm «Tiếp»", 5: "Tự sang sau 5 giây", 8: "Tự sang sau 8 giây", 12: "Tự sang sau 12 giây" }, q.tu_chuyen_giay || "")}</div>
+      <p class="small muted" style="margin:6px 0 0">Nhớ đặt «tối đa … giây» ở trên đủ cho mọi lượt (khoảng 15 giây / lượt).</p>`;
+  };
+  const qCard = (q, i) => q.loai === "noi" ? noiCard(q, i) : `<div class="card qedit" id="q${i}">
     <div class="row between"><b>${nhanCau(i)}</b><div class="row" style="gap:2px">
       <button type="button" class="btn btn-sm" data-act="xem" data-i="${i}" title="Xem thử như học sinh">👀 Xem thử</button>
       <button type="button" class="icon-btn" data-act="up" data-i="${i}" title="Lên" ${i === 0 ? "disabled" : ""}>↑</button>
@@ -200,6 +239,7 @@ async function tEditorTH(id, nh) {
     <div style="max-width:820px">
     <p class="small muted">Học sinh làm trên điện thoại: chữ to, hình to, nút 🔊 đọc đề, chia chặng có pháo hoa, kết quả bằng sao. Chấm tự động, % đạt và giải thích từng câu như bài thường. Ảnh được nén nhỏ trước khi tải lên.</p>
     <div class="field"><label class="f">Tên đề</label><input class="input" id="title" data-in="title" value="${esc(E.title)}" placeholder="Ví dụ: Unit 2 – Lớp 3 – My family"></div>
+    ${khoiDeHtml(E.khoi)}
     <div class="row between" style="margin:18px 0 8px"><h2 style="margin:0"><span id="qcount">0</span> câu hỏi</h2>
       <div class="row" style="gap:6px"><button type="button" class="btn btn-sm btn-gold" data-act="xemCa">👀 Xem thử cả bài như học sinh</button>
       <button type="button" class="btn btn-sm" data-act="nghe">🎧 File nghe của đề${E.am_thanh.length ? " (" + E.am_thanh.length + ")" : ""}</button></div></div>`) + `
@@ -261,7 +301,11 @@ async function tEditorTH(id, nh) {
   ACT["in:cap"] = (el) => { E.qs[+el.dataset.i].cap[+el.dataset.j].cau = el.value; mark(); };
   ACT["in:nd"] = (el) => { const q = E.qs[+el.dataset.i]; q.nghe_doan = Object.assign(q.nghe_doan || {}, { [el.dataset.f]: el.value === "" ? null : Number(el.value) }); mark(); };
   ACT["ch:ndTep"] = (el) => { const q = E.qs[+el.dataset.i]; q.nghe_doan = Object.assign(q.nghe_doan || {}, { tep: el.value }); mark(); drawCard(+el.dataset.i); };
-  ["muc", "ky_nang", "chang"].forEach((f) => { ACT["ch:" + f] = (el) => { E.qs[+el.dataset.i][f] = el.value === "" ? null : f === "chang" ? Number(el.value) : el.value; mark(); if (f === "ky_nang") drawCard(+el.dataset.i); }; });
+  ["muc", "ky_nang", "chang", "muc_noi", "ghi", "chu_chay", "tu_chuyen_giay"].forEach((f) => { ACT["ch:" + f] = (el) => { E.qs[+el.dataset.i][f] = el.value === "" ? null : f === "chang" || f === "tu_chuyen_giay" ? Number(el.value) : el.value; mark(); if (f === "ky_nang" || f === "muc_noi") drawCard(+el.dataset.i); }; });
+  ACT["ch:an_goi_y"] = (el) => { E.qs[+el.dataset.i].an_goi_y = el.checked; mark(); };
+  ACT["in:luot"] = (el) => { E.qs[+el.dataset.i].luot[+el.dataset.j][el.dataset.f] = el.value; mark(); };
+  ACT.luotThem = (b) => { const i = +b.dataset.i; E.qs[i].luot.push({ hoi: "", tra_loi_goi_y: "" }); mark(); drawCard(i); };
+  ACT.luotXoa = (b) => { const i = +b.dataset.i; E.qs[i].luot.splice(+b.dataset.j, 1); mark(); drawCard(i); };
   // sua doan van o cau dau nhom -> ca nhom (cac cau «dien» lien sau dang dung chung) doi theo
   ACT["in:doan"] = (el) => {
     const i = +el.dataset.i, cu = E.qs[i].doan_van;
@@ -274,6 +318,7 @@ async function tEditorTH(id, nh) {
   ACT.tachDoan = (el) => { const i = +el.dataset.i; E.qs[i].doan_van = ""; mark(); drawList(); };
   ACT["ch:cor"] = (el) => { E.qs[+el.dataset.i].correct = +el.dataset.j; mark(); };
   const theMoi = (loai, last) => {
+    if (loai === "noi") return { loai, muc_noi: "tu", instruction: TH_LENH.noi, goi_y: "", van_ban_mau: "", gioi_han_giay: 60, ghi: "video", anh: null, ky_nang: "noi", muc: last ? last.muc : null, chang: last ? last.chang : null };
     const n = loai === "dung_sai" ? 2 : loai === "hinh" || loai === "nghe" || loai === "nghe_chu" ? 3 : 4;
     return { loai, instruction: last && last.loai === loai ? last.instruction : TH_LENH[loai], question: "", anh: null,
       options: loai === "dung_sai" ? ["Đúng", "Sai"] : Array(n).fill(""), anh_lc: Array(n).fill(null), correct: null, explanation: "", doc_lenh: "",
@@ -331,6 +376,20 @@ async function tEditorTH(id, nh) {
     return c;
   };
   const goiThe = (q, i) => {
+    if (q.loai === "noi") {
+      const c = { loai: "noi", muc_noi: q.muc_noi || "tu", ghi: q.ghi || "video", gioi_han_giay: Number(q.gioi_han_giay) || 60 };
+      ["instruction", "goi_y", "van_ban_mau"].forEach((f) => { if ((q[f] || "").trim()) c[f] = q[f].trim(); });
+      if (q.anh) c.anh = q.anh;
+      if (q.muc) c.muc = q.muc;
+      if (q.chang) c.chang = q.chang;
+      if (q.muc_noi === "hoi_dap") {
+        delete c.goi_y; delete c.van_ban_mau;
+        c.luot = (q.luot || []).filter((l) => (l.hoi || "").trim()).map((l) => Object.assign({}, l, { hoi: l.hoi.trim(), tra_loi_goi_y: (l.tra_loi_goi_y || "").trim() || undefined }));
+        if (q.an_goi_y) c.an_goi_y = true;
+        if (q.tu_chuyen_giay) c.tu_chuyen_giay = q.tu_chuyen_giay;
+      } else if (TH_NOI_CHAY.includes(c.muc_noi) && q.chu_chay && q.chu_chay !== "cham") c.chu_chay = q.chu_chay;
+      return [c];
+    }
     const c = chung(q);
     if (q.loai === "ghep") {
       const tranh = q.cap.map((x) => x.anh).concat((q.tranh_them || []).filter(Boolean));
@@ -348,10 +407,17 @@ async function tEditorTH(id, nh) {
     if (q.loai === "dien" && (q.doan_van || "").trim()) c.doan_van = q.doan_van.trim();
     return [c];
   };
-  const goi = () => E.qs.flatMap(goiThe);
+  const goi = () => E.qs.flatMap((q, i) => (q.loai === "noi" ? [] : goiThe(q, i)));   // phan trac nghiem
+  const goiNoi = () => E.qs.flatMap((q, i) => (q.loai === "noi" ? goiThe(q, i) : []));   // phan noi (luu rieng)
   const kiem = () => {
+    if (!nh && E.qs.length && E.qs.every((q) => q.loai === "noi")) return [0, "Đề cần ít nhất 1 câu trắc nghiệm ngoài phần nói."];
     for (let i = 0; i < E.qs.length; i++) {
       const q = E.qs[i], so = nhanCau(i);
+      if (q.loai === "noi") {
+        if (q.muc_noi === "hoi_dap") { if (!(q.luot || []).some((l) => (l.hoi || "").trim())) return [i, `${so} (đối đáp): cần ít nhất 1 câu hỏi.`]; continue; }
+        if (!q.anh && !(q.goi_y || "").trim() && !(q.van_ban_mau || "").trim()) return [i, `${so}: cần tranh, gợi ý hoặc câu mẫu để bé biết nói gì.`];
+        continue;
+      }
       if (q.loai === "ghep") {
         if (q.cap.some((c) => !(c.cau || "").trim() || !c.anh)) return [i, `${so} (nối câu – tranh): cặp nào cũng cần câu và tranh.`];
         continue;
@@ -392,6 +458,11 @@ async function tEditorTH(id, nh) {
       ${than}`;
   };
   ACT.xem = (el) => {
+    if (E.qs[+el.dataset.i].loai === "noi") {
+      const i = +el.dataset.i;
+      return taiNoi(() => { openSheet(`<div class="th"><p class="small muted" style="margin:0 0 6px">👀 Học sinh thấy bài nói này như sau (sau phần trắc nghiệm):</p>${noiXemHtml(i)}</div>
+        <button type="button" class="btn btn-block" data-act="closeSheet" style="margin-top:10px">Đóng</button>`); thGanNut(); });
+    }
     const i = +el.dataset.i, qz = boXem([i]);
     openSheet(`<div class="th"><p class="small muted" style="margin:0 0 6px">👀 ${nhanCau(i)} — học sinh sẽ thấy như sau (bấm thử 🔊; đáp án đúng đã được chọn sẵn):</p>
       ${veXem(qz, qz.qs[0])}</div>
@@ -399,11 +470,14 @@ async function tEditorTH(id, nh) {
     thGanNut(qz);
   };
   // Xem thu ca bai: lan luot moi the (the ghep = 1 bang), theo chang
-  ACT.xemCa = () => {
+  // bai_noi.js (the bai noi dung chung voi trang HS) chi tai khi can
+  const taiNoi = (chay) => { if (window.noiTheHtml) return chay(); const sc = document.createElement("script"); sc.src = "bai_noi.js?v=2"; sc.onload = chay; sc.onerror = () => toast("Không tải được phần xem thử. Kiểm tra mạng."); document.head.appendChild(sc); };
+  const noiXemHtml = (i) => noiTheHtml(goiThe(E.qs[i], i)[0], soNoi(i) - 1, null, `<button type="button" class="btn btn-gold btn-block btn-lg" style="margin-top:10px" disabled>${E.qs[i].ghi === "am_thanh" ? "🔴 Bấm để ghi âm" : "🔴 Bấm để quay"}</button>`);
+  ACT.xemCa = () => { if (E.qs.some((q) => q.loai === "noi") && !window.noiTheHtml) return taiNoi(ACT.xemCa);
     if (!E.qs.length) { toast("Đề chưa có câu nào."); return; }
-    const qz = boXem(E.qs.map((_, i) => i));
+    const qz = boXem(E.qs.map((_, i) => i).filter((i) => E.qs[i].loai !== "noi"));
     let chang = null, truoc = null;
-    const html = E.qs.map((_, i) => {
+    const html = E.qs.map((_, i) => { if (E.qs[i].loai === "noi") return noiXemHtml(i);
       const q = qz.qs.find((x) => x.the === i), c = q.chang || null;
       const dau = c !== chang && c ? `<h3 style="margin:14px 0 4px">🚩 Chặng ${c}</h3>` : "";
       chang = c;
@@ -432,6 +506,9 @@ async function tEditorTH(id, nh) {
       const r = await api("t_save_quiz", { p_id: E.id, p_title: E.title, p_questions: goi() });
       E.id = r.id;
       await api("t_dat_i_can", { p_quiz_id: r.id, p_ds: E.i_can.split("\n").map((t) => t.trim()).filter(Boolean) });
+      await luuKhoiDe(r.id);
+      const bn = await api("t_dat_bai_noi", { p_quiz_id: r.id, p_ds: goiNoi() });   // phan noi luu rieng (muc 22)
+      if (bn && bn.error) throw new Error(bn.error);
       E.dirty = false;
       const cb = canhBao();
       msg.innerHTML = cb.length ? `<div class="alert alert-warn"><b>Đã lưu.</b> Cô xem lại:<ul style="margin:6px 0 0;padding-left:18px">${cb.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></div>` : "";

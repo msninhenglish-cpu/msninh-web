@@ -306,6 +306,20 @@ table.t tr.row-ok td { background: #f2fbf6; }
 .lh:last-of-type { border-bottom: 0; } .lh span { flex: none; width: 24px; text-align: center; } .lh a { overflow-wrap: anywhere; }
 
 .dk-card.dk-xong { opacity: .6; }
+.dk-card.dk-mo { outline: 3px solid var(--warn); }
+/* chuong thong bao GV */
+.tb-o { position: relative; }
+.tb-nut { position: relative; font-size: 18px; padding: 4px 10px; }
+.tb-so { position: absolute; top: -7px; right: -7px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 10px; background: var(--bad); color: #fff; font-size: 12px; line-height: 20px; text-align: center; }
+.tb-so[hidden], .tb-ds[hidden] { display: none; }
+.tb-ds { position: absolute; right: 0; top: calc(100% + 8px); z-index: 60; width: min(380px, calc(100vw - 32px)); max-height: 70vh; overflow: auto; background: var(--card); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 10px 30px rgba(40, 60, 130, .2); text-align: left; }
+.tb-dau { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--line); position: sticky; top: 0; background: var(--card); }
+.tb-dong { padding: 10px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.tb-dong:hover { background: var(--pri-t2); }
+.tb-dong.moi { background: var(--warnbg); border-left: 4px solid var(--warn); }
+.tb-dong a { font-weight: 700; text-decoration: none; }
+.tb-nhan { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.tb-cuoi { display: block; padding: 10px 12px; text-align: center; font-weight: 700; text-decoration: none; }
 
 /* ===================== Website gioi thieu msninh.vn (cong_khai.js) — ban 4 kieu Ocean Edu, nhe ===================== */
 .pub { background: #fff; color: var(--ink); --cam: #ff8a1f; --vang: #ffd34d; --xanh-nhat: #e8eeff; }
@@ -743,3 +757,48 @@ mark.cho-dang { background: #ffe066; color: inherit; padding: 1px 4px; border-ra
 .ican-mat button { width: 64px; height: 64px; border-radius: 50%; border: 3px solid var(--line); background: #fff; font-size: 34px; cursor: pointer; }
 .ican-mat button.chon { border-color: var(--warn); background: var(--warnbg); transform: scale(1.12); }
 @media (prefers-reduced-motion: reduce) { .mung-hoa { display: none; } .mung-sao { animation: none; } }
+
+/* Kho de theo khoi (muc 21) */
+.khoi-o { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; margin: 4px 0 16px; }
+.khoi-nut { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 12px 14px; border: 2px solid var(--line); border-radius: 14px; background: var(--card); color: var(--ink); cursor: pointer; font: inherit; text-align: left; }
+.khoi-nut span { font-size: 13px; color: var(--muted); }
+.khoi-nut.rong { opacity: .6; }
+.khoi-nut.chon { border-color: var(--pri); background: var(--pri-t); box-shadow: 0 0 0 3px var(--pri-t2); }
+.khoi-nut.chon span { color: var(--pri-d); font-weight: 700; }
+.khoi-chon { width: auto; padding: 6px 8px; font-size: 14px; border-width: 1px; }
+
+/* Bai noi quay video (muc 22) */
+.noi-vao { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--ink); border: 3px solid var(--warn); background: var(--warnbg); }
+.noi-vao-icon { font-size: 38px; line-height: 1; }
+.noi-vao-mui { font-size: 26px; color: var(--warn); }
+.noi-the .noi-goi-y { font-size: 18px; margin: 8px 0; }
+.noi-mau { font-size: 22px; font-weight: 700; line-height: 1.5; background: var(--pri-t2); border-radius: 14px; padding: 12px 16px; margin: 8px 0; }
+.noi-mau.nho { font-size: 18px; }
+/* chu chay theo nhip (karaoke) + doi dap */
+.noi-toc { margin: 0 0 6px; }
+.noi-chay { position: relative; font-size: 24px; max-height: 34vh; overflow: auto; scroll-behavior: smooth; }
+.nc-tu { border-radius: 6px; padding: 0 2px; transition: background .15s, color .15s; }
+.nc-tu.qua { color: var(--pri-d); }
+.nc-tu.on { background: #ffd84d; color: var(--ink); box-shadow: 0 0 0 3px #ffd84d; }
+.noi-khung.gon video { max-height: 30vh; }
+.noi-hd { background: var(--pri-t2); border-radius: 14px; padding: 10px 14px; margin: 0 0 8px; }
+.hd-hoi { font-size: 24px; font-weight: 700; line-height: 1.35; margin: 4px 0; }
+.hd-goi { font-size: 20px; color: var(--ok); font-weight: 700; min-height: 1.4em; margin-bottom: 6px; }
+.hd-anh img { max-height: 22vh; }
+.noi-luot { margin: 8px 0 0; padding-left: 22px; font-size: 17px; }
+.noi-luot li { margin: 4px 0; }
+.hd-hoi-nho { font-weight: 700; }
+.noi-khung { position: relative; background: #111827; border-radius: 16px; overflow: hidden; min-height: 120px; display: flex; align-items: center; justify-content: center; }
+.noi-khung video { width: 100%; max-height: 52vh; display: block; transform: scaleX(-1); background: #000; }
+.noi-khung video[controls] { transform: none; }
+.noi-khung.dang { box-shadow: 0 0 0 4px var(--bad); }
+.noi-mic { font-size: 64px; padding: 24px; }
+.noi-khung.dang .noi-mic { animation: noiNhip 1s infinite; }
+@keyframes noiNhip { 50% { transform: scale(1.15); } }
+.noi-dong-ho { position: absolute; left: 10px; top: 8px; color: #fff; background: rgba(0,0,0,.55); padding: 2px 10px; border-radius: 999px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.noi-sao { color: #f5b301; letter-spacing: 1px; }
+.noi-sao .faint { color: #d9dee9; }
+.noi-chon-sao { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
+.noi-chon-sao button { font-size: 28px; line-height: 1; padding: 2px; border: 0; background: none; color: #d9dee9; cursor: pointer; }
+.noi-chon-sao button.on { color: #f5b301; }
+.seg label.on { background: var(--pri); color: #fff; border-color: var(--pri); }

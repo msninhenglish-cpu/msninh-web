@@ -107,6 +107,7 @@ async function tHoSo(id) {
     <h2>🏆 Kết quả gần đây</h2>${d.ket_qua.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>Ngày</th><th>Nguồn</th><th>Bài</th><th>Điểm</th></tr></thead><tbody>
       ${d.ket_qua.slice(0, 30).map((k) => `<tr><td class="small">${fmtDT(k.ngay)}</td><td>${esc((NGUON[k.nguon] || { nhan: k.nguon }).nhan)}</td><td class="wrap">${esc(k.ten)}</td>
         <td><b class="score ${scoreCls(k.diem10)}">${fmtScore(k.diem10)}</b>${k.tong ? ` <span class="small muted">${k.dung ?? "?"}/${k.tong}</span>` : ""}</td></tr>`).join("")}</tbody></table></div>` : '<div class="empty small">Chưa có kết quả.</div>'}
+    <div id="hsNoi"></div>
     <h2>📅 Điểm danh gần đây</h2>${ttDiemDanh.length ? `<p>${ttDiemDanh.map((a) => `<span class="badge ${a.co_mat ? "hw" : "exam"}" title="${esc(a.lop)}${a.sua_boi ? " · cô đã sửa" : ""}" style="margin:2px">${a.co_mat ? "✓" : "✗"} ${esc(ngayVN(a.ngay))}</span>`).join("")}</p>` : '<div class="empty small">Chưa có điểm danh.</div>'}
     <h2>💰 Học phí</h2>${d.hoc_phi.length ? `<div class="table-wrap"><table class="t"><thead><tr><th>Tháng</th><th>Số buổi</th><th>Thành tiền</th><th>Trạng thái</th></tr></thead><tbody>
       ${d.hoc_phi.map((f) => `<tr><td>${esc(thangVN(f.thang))}</td><td>${f.so_buoi ?? "—"}</td><td>${f.thanh_tien === null ? "—" : tien(f.thanh_tien)}</td>
@@ -114,6 +115,12 @@ async function tHoSo(id) {
     <h2>🗂 Lịch sử thay đổi</h2>${d.lich_su.length ? d.lich_su.map((l) => `<div style="padding:6px 0;border-bottom:1px solid #eef1f8"><b>${esc(HS_TRUONG[l.truong] || l.truong)}</b>
       ${l.truong === "tao" || l.truong === "dat_lai_mk" ? (l.thanh ? ": " + esc(hsGiaTri(l.thanh)) : "") : `: ${esc(hsGiaTri(l.tu))} → <b>${esc(hsGiaTri(l.thanh))}</b>`}
       <div class="small muted">${esc(l.boi)} · ${fmtDT(l.luc)}</div></div>`).join("") : '<div class="empty small">Chưa có thay đổi.</div>'}`;
+  // Bai noi (muc 22): sao co cham, moi nhat truoc
+  api("t_noi_hoc_sinh", { p_user_id: id }).then((n) => {
+    const el = document.getElementById("hsNoi"); if (!el || !n || !n.rows || !n.rows.length) return;
+    el.innerHTML = `<h2>🎤 Bài nói${n.tb_sao ? ` <span class="small muted">· trung bình ${String(n.tb_sao).replace(".", ",")}/10 ⭐</span>` : ""}</h2><div class="table-wrap"><table class="t"><thead><tr><th>Ngày</th><th>Bài</th><th>Sao</th><th>Nhận xét</th></tr></thead><tbody>
+      ${n.rows.slice(0, 20).map((r) => `<tr><td class="small">${fmtDT(r.nop_luc)}</td><td class="wrap">${esc(r.bai)} · nói ${r.so + 1}</td><td>${r.sao ? `<b>${r.sao}/10</b> ⭐` : '<span class="badge gold">Chờ chấm</span>'}</td><td class="wrap small">${esc(r.nhan_xet || "")}</td></tr>`).join("")}</tbody></table></div>`;
+  }, () => {});
   const luu = async (btn, p) => {
     try { await api("t_sua_hoc_sinh", { p_user_id: id, p }); closeSheet(); toast("Đã lưu"); route(); }
     catch (e) { toast(e.message, 4500); }

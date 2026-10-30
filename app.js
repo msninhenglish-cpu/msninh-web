@@ -163,8 +163,8 @@ async function api(fn, args, withToken) {
   if (data && data.error) throw new Error(data.error);
   return data;
 }
-function setSession(token, user) { S.token = token; S.user = user; S.dash = null; S.home = null; S.lastResult = null; LS.set("kt_token", token); LS.set("kt_user", user); }
-function clearSession() { S.token = null; S.user = null; S.home = null; S.dash = null; S.lastResult = null; LS.del("kt_token"); LS.del("kt_user"); }
+function setSession(token, user) { TB.so = 0; TB.luc = 0; S.token = token; S.user = user; S.dash = null; S.home = null; S.lastResult = null; LS.set("kt_token", token); LS.set("kt_user", user); }
+function clearSession() { TB.so = 0; TB.luc = 0; S.token = null; S.user = null; S.home = null; S.dash = null; S.lastResult = null; LS.del("kt_token"); LS.del("kt_user"); }
 
 /* ================= dieu huong ================= */
 let ACT = {};
@@ -183,7 +183,7 @@ document.addEventListener("click", (e) => {
   const el = e.target.closest("[data-act]");
   if (!el) return;
   if (el.dataset.act === "closeSheet") { e.preventDefault(); return dongSheet(); }
-  const fn = ACT[el.dataset.act] || (el.dataset.act === "logout" ? doLogout : null);
+  const fn = ACT[el.dataset.act] || ACT_CHUNG[el.dataset.act] || (el.dataset.act === "logout" ? doLogout : null);
   // "noop" chi de chan click trong khung bat len khoi dong khung; khong chan nut submit ben trong
   if (fn) { if (el.dataset.act !== "noop") e.preventDefault(); fn(el, e); }
 });
@@ -228,12 +228,13 @@ async function route() {
         case "q": return tEditor(p[2] === "new" ? null : +p[2]);
         case "qth": return moTH(() => tEditorTH(p[2] === "new" ? null : +p[2]));
         case "nh": return moNH(() => tNganHang(query));
+        case "noi": return moNoi(() => tNoi(+p[2]));
         case "nhs": return moTH(() => tEditorTH(null, { id: p[2] === "new" ? null : +p[2], khoi: query.get("khoi"), unit: query.get("unit"), bo_sach: query.get("bo"), ten_unit: query.get("ten") }));
         case "de": return moDe(() => tDe(+p[2]));
         case "classes": return tClasses();
         case "c": return p[3] === "print" ? tPrint(+p[2]) : p[3] === "tq" ? tTongQuan(+p[2], query) : tClass(+p[2]);
         case "hoc-phi": return tHocPhi(query);
-        case "dang-ky": return tDangKy();
+        case "dang-ky": return tDangKy(query);
         case "sua-web": return moSuaWeb();
         case "buoi-hoc": return moBuoiHoc(query);
         case "hoc-sinh": return moHocSinh(() => tHocSinh(query));
@@ -254,6 +255,7 @@ async function route() {
       case "quiz": return sQuiz(+p[1]);
       case "result": return sResult();
       case "review": return sReview(+p[1]);
+      case "noi": return moNoi(() => sNoi(+p[1]));
       case "results": return sResults();
       case "tien-bo": return sTienBo();
       case "diem-danh": return sDiemDanh();
@@ -306,7 +308,8 @@ function sShell(tab, inner, opts) {
 }
 function tShell(tab, inner) {
   const nav = [["home", "#/t", "▶️ Bài đã giao"], ["quizzes", "#/t/quizzes", "📚 Kho đề"], ["classes", "#/t/classes", "🏫 Lớp & học sinh"], ["hocsinh", "#/t/hoc-sinh", "👩‍🎓 Học sinh"], ["chamsoc", "#/t/cham-soc", "💌 Chăm sóc"], ["nhanxettuan", "#/t/nhan-xet", "📝 Nhận xét tuần"], ["buoihoc", "#/t/buoi-hoc", "📅 Buổi học"], ["hocphi", "#/t/hoc-phi", "💰 Học phí"], ["dangky", "#/t/dang-ky", "📩 Phiếu đăng ký"], ["suaweb", "#/t/sua-web", "✏️ Sửa website"], ["account", "#/t/account", "⚙️ Tài khoản"]];
-  return `<div class="page wide">${topbar('<button class="btn btn-sm hide-sm" data-act="logout">Đăng xuất</button>')}
+  tbBatDau();
+  return `<div class="page wide">${topbar(chuongHtml() + '<button class="btn btn-sm hide-sm" data-act="logout">Đăng xuất</button>')}
     <div class="tabs grid3">${nav.map((n) => `<a href="${n[1]}" class="${n[0] === tab ? "on" : ""}">${n[2]}</a>`).join("")}</div>
     <main>${inner}</main></div>`;
 }
@@ -335,7 +338,7 @@ function moHocSinh(chay) {
   if (window.tHocSinh) return chay();
   app.innerHTML = tShell("hocsinh", spinner());
   const s = document.createElement("script");
-  s.src = "hoc_sinh.js?v=4";
+  s.src = "hoc_sinh.js?v=5";
   s.onload = () => chay();
   s.onerror = () => { app.querySelector("main").innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
   document.head.appendChild(s);
@@ -860,13 +863,32 @@ async function thICan(aid) {
   };
   ve();
 }
+// Bai noi quay video (HS quay, GV cham) o bai_noi.js, chi tai khi mo
+function moNoi(chay) {
+  if (window.sNoi) return chay();
+  app.innerHTML = (S.user && S.user.role === "teacher" ? tShell : sShell)("home", spinner());
+  const s = document.createElement("script");
+  s.src = "bai_noi.js?v=2";
+  s.onload = () => chay();
+  s.onerror = () => { const m = app.querySelector("main"); if (m) m.innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
+  document.head.appendChild(s);
+}
+// Sau khi nop: bai co phan noi -> the «Con phan NOI»
+async function noiVao(aid) {
+  const el = document.getElementById("noiVao"); if (!el) return;
+  let d; try { d = await api("student_bai_noi", { p_attempt_id: aid }); } catch (e) { return; }
+  if (!d || !d.ds || !d.ds.length) return;
+  const xong = d.ds.filter((_, i) => d.da[i]).length;
+  el.innerHTML = `<a class="card noi-vao" href="#/noi/${aid}"><div class="noi-vao-icon">🎤</div><div class="grow"><b>${xong < d.ds.length ? "Còn phần NÓI nữa nhé!" : "Phần nói của em"}</b>
+    <div class="small muted">${xong}/${d.ds.length} bài đã quay${xong < d.ds.length ? " · bấm vào để quay video" : " · xem cô chấm"}</div></div><span class="noi-vao-mui">➜</span></a>`;
+}
 // Trinh soan de tieu hoc (GV) nam o tieu_hoc.js, chi tai khi mo
 // Kho cau hoi (GV) o ngan_hang.js, chi tai khi mo
 function moNH(chay) {
   if (window.tNganHang) return chay();
   app.innerHTML = tShell("quizzes", spinner());
   const s = document.createElement("script");
-  s.src = "ngan_hang.js?v=3";
+  s.src = "ngan_hang.js?v=4";
   s.onload = () => chay();
   s.onerror = () => { const m = app.querySelector("main"); if (m) m.innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
   document.head.appendChild(s);
@@ -875,7 +897,7 @@ function moTH(chay) {
   if (window.tEditorTH) return chay();
   app.innerHTML = tShell("quizzes", spinner());
   const s = document.createElement("script");
-  s.src = "tieu_hoc.js?v=5";
+  s.src = "tieu_hoc.js?v=8";
   s.onload = () => chay();
   s.onerror = () => { const m = app.querySelector("main"); if (m) m.innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
   document.head.appendChild(s);
@@ -1273,7 +1295,7 @@ function sResult() {
   const sao = r.th ? thSao(r.correct, r.total) : null;
   app.innerHTML = sShell("home", (sao ? `<div class="card center sao-kq">${r.auto ? '<p><span class="badge gold">⏰ Hết giờ, bài đã được nộp tự động</span></p>' : ""}
       <div class="muted">${esc(r.title)}</div><div class="sao-to">${sao.html}</div><h2>${sao.khen}</h2>
-      <p class="muted">Con đúng ${r.correct} / ${r.total} câu</p></div><div id="ican"></div>` : "") + `<div class="card center ${sao ? "hidden" : ""}">
+      <p class="muted">Con đúng ${r.correct} / ${r.total} câu</p></div><div id="noiVao"></div><div id="ican"></div>` : '<div id="noiVao"></div>') + `<div class="card center ${sao ? "hidden" : ""}">
       ${r.auto ? '<p><span class="badge gold">⏰ Hết giờ, bài đã được nộp tự động</span></p>' : ""}
       <div class="logo-emoji">${v >= 8 ? "🏆" : v >= 5 ? "👍" : "📚"}</div>
       <div class="muted">${esc(r.title)}</div>
@@ -1295,6 +1317,7 @@ function sResult() {
     ${r.can_retry && !(r.muc_dat && !r.dat) ? `<a class="btn btn-block btn-lg" href="#/start/${r.assignment_id}" style="margin-top:12px">🔁 Làm lại cả bài</a>` : ""}
     <a class="btn btn-ghost btn-block" href="#/" style="margin-top:12px">Về trang chủ</a>`);
   if (r.th) thICan(r.attempt_id);
+  if (!r.vao_nhanh) noiVao(r.attempt_id);
 }
 
 function reviewHtml(d, onlyWrong) {
@@ -1805,6 +1828,10 @@ async function tResults(id) {
   const linkA = linkBai(aOv && S.ov.quizzes.find((q) => q.id === aOv.quiz_id), id);
   const classes = [...new Set(R.students.map((s) => s.class_name || "—"))];
   let tab = "students", cls = "", sortQ = false;
+  // Bai co phan noi (muc 22): nut «Cham bai noi (n cho)»
+  let noiD = null;
+  const noiNut = () => (noiD ? `<a class="btn btn-sm ${noiD.cho_cham ? "btn-gold" : ""}" href="#/t/noi/${id}">🎤 Chấm bài nói${noiD.cho_cham ? ` (${noiD.cho_cham} chờ)` : ""}</a>` : "");
+  api("t_bai_noi_ds", { p_assignment_id: id }).then((x) => { if (x && x.ds && x.ds.length) { noiD = x; const el = document.getElementById("noiNutGV"); if (el) el.innerHTML = noiNut(); } }, () => {});
   const draw = () => {
     const list = R.students.filter((s) => !cls || (s.class_name || "—") === cls);
     const done = list.filter((s) => s.used > 0);
@@ -1846,6 +1873,7 @@ async function tResults(id) {
       <div class="row no-print" style="margin:12px 0">
         <button class="btn btn-sm" data-act="retry">↻ Làm mới</button>
         <a class="btn btn-sm" href="#/t/a/${id}/edit">⚙ Cài đặt</a>
+        <span id="noiNutGV">${noiNut()}</span>
         ${A.show_answers !== "after_submit" ? '<button class="btn btn-sm" data-act="reveal">🔓 Mở đáp án cho HS</button>' : ""}
         <button class="btn btn-sm" data-act="xls">⬇ Xuất Excel</button>
         <button class="btn btn-sm btn-danger" data-act="del">Xoá bài giao</button></div>
@@ -1925,6 +1953,15 @@ async function tAttempt(id) {
 }
 
 /* ---------------- kho de ---------------- */
+// O chon khoi trong trinh soan de (muc 21): de moi lay khoi dang mo o Kho de; luu xong goi t_dat_khoi_de
+function khoiDeHtml(k) {
+  const v = k || (/^\d+$/.test(LS.get("khoDeKhoi") || "") && LS.get("khoDeKhoi") !== "0" ? Number(LS.get("khoDeKhoi")) : "");
+  return `<div class="field"><label class="f">Khối <span class="faint">(để xếp đề trong Kho đề)</span></label><select class="input" id="khoiDe" style="width:auto">${["", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((x) => `<option value="${x}" ${String(v) === String(x) ? "selected" : ""}>${x ? "Khối " + x : "— Chưa xếp —"}</option>`).join("")}</select></div>`;
+}
+async function luuKhoiDe(id) {
+  const el = document.getElementById("khoiDe");
+  if (el && el.value) await api("t_dat_khoi_de", { p_quiz_id: id, p_khoi: Number(el.value) });
+}
 async function tQuizzes() {
   app.innerHTML = tShell("quizzes", spinner());
   ACT.retry = () => route();
@@ -1932,13 +1969,39 @@ async function tQuizzes() {
   try { [ov, bt] = await Promise.all([api("t_overview"), api("t_ds_bai_thu")]); } catch (e) { app.querySelector("main").innerHTML = pageError(e); return; }
   app.querySelector("main").innerHTML = `<div class="row between" style="margin-bottom:12px"><h1 style="margin:0">Kho đề</h1><div class="row"><a class="btn" href="#/t/nh">📚 Kho câu hỏi</a><a class="btn" href="#/t/qth/new">🧒 + Đề tiểu học</a><a class="btn btn-primary" href="#/t/q/new">+ Soạn đề mới</a></div></div>
     ${baiThuHtml(ov.quizzes, bt)}
-    ${ov.quizzes.map((q) => `<div class="card row between">
+    <div class="khoi-o" id="khoiO"></div>
+    <div id="dsDe"></div>
+    <p class="small muted">Sửa đề không ảnh hưởng tới các bài đã giao trước đó (mỗi bài giao giữ bản sao của đề lúc giao) — riêng <b>giải thích</b> được cập nhật luôn cho bài đã giao. Sửa đáp án trên web là <b>chuẩn</b>: web tự chấm lại bài online + bài giấy đã chấm trên web; phần mềm chấm điểm đăng lại sẽ không ghi đè bản cô đã sửa.</p>`;
+  // Kho de theo khoi (muc 21): o Khoi 2…9 (+ khoi khac neu co) + «Chua xep khoi»; nho khoi bam lan truoc
+  const khoaK = (q) => (q.khoi ? String(q.khoi) : "0");
+  const demK = {}; ov.quizzes.forEach((q) => { demK[khoaK(q)] = (demK[khoaK(q)] || 0) + 1; });
+  const dsK = [...new Set(["2", "3", "4", "5", "6", "7", "8", "9", ...Object.keys(demK).filter((k) => k !== "0")])].sort((a, b) => a - b).concat("0");
+  let chonK = LS.get("khoDeKhoi");
+  if (!dsK.includes(chonK)) chonK = dsK.find((k) => demK[k]) || "2";
+  const veDe = (q) => `<div class="card row between">
       <div class="grow"><b>${esc(q.title)}</b>${q.nguon === "may_cham" ? ` <span class="badge" title="Đăng từ phần mềm chấm điểm">📥 Mã đề ${esc(q.ma_de)}</span>` : ""}${q.nguon === "he_cu" ? ' <span class="badge" title="Chuyển từ hệ ôn tập cũ (Apps Script)">🗂 Hệ cũ</span>' : ""}${q.tieu_hoc ? ' <span class="badge gold" title="Đề tiểu học: hình to, nút đọc đề">🧒 Tiểu học</span>' : ""}<div class="small muted">${q.n_questions} câu${q.chuyen_de ? " · " + esc(q.chuyen_de) : ""} · 💡 ${q.n_giai_thich}/${q.n_questions} câu có giải thích · sửa lần cuối ${fmtDT(q.updated_at)}</div></div>
       ${q.ma_de && /^[A-Za-z0-9._-]+$/.test(q.ma_de) ? linkHtml(linkBai(q, 0)) : ""}
       <div class="row"><button class="btn btn-sm" data-act="nghe" data-id="${q.id}" data-t="${esc(q.title)}">🎧 Bài nghe${q.n_am_thanh ? " (" + q.n_am_thanh + ")" : ""}</button><a class="btn btn-sm" href="#/t/de/${q.id}">📊 Lần chấm</a><button class="btn btn-sm" data-act="word" data-id="${q.id}">📄 Word</button><a class="btn btn-sm" href="#/t/${q.tieu_hoc ? "qth" : "q"}/${q.id}">Sửa</a><a class="btn btn-sm btn-primary" href="#/t/new?quiz=${q.id}">Giao bài</a>
-      <button class="btn btn-sm btn-danger" data-act="del" data-id="${q.id}" data-t="${esc(q.title)}">Xoá</button></div></div>`).join("") || '<div class="empty">Chưa có đề nào.</div>'}
-    <p class="small muted">Sửa đề không ảnh hưởng tới các bài đã giao trước đó (mỗi bài giao giữ bản sao của đề lúc giao) — riêng <b>giải thích</b> được cập nhật luôn cho bài đã giao. Sửa đáp án trên web là <b>chuẩn</b>: web tự chấm lại bài online + bài giấy đã chấm trên web; phần mềm chấm điểm đăng lại sẽ không ghi đè bản cô đã sửa.</p>`;
-  datChepLink();
+      <select class="input khoi-chon" data-khoi-de="${q.id}" title="${q.khoi_chot ? "Khối cô đã chọn" : q.khoi ? "Web tự đoán khối — chọn để chốt" : "Chưa xếp khối"}">${["", 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((k) => `<option value="${k}" ${String(q.khoi || "") === String(k) ? "selected" : ""}>${k ? "Khối " + k : "— Khối —"}${k && k === q.khoi && !q.khoi_chot ? " (đoán)" : ""}</option>`).join("")}</select>
+      <button class="btn btn-sm btn-danger" data-act="del" data-id="${q.id}" data-t="${esc(q.title)}">Xoá</button></div></div>`;
+  const veK = () => {
+    LS.set("khoDeKhoi", chonK);
+    document.getElementById("khoiO").innerHTML = dsK.map((k) => `<button type="button" class="khoi-nut ${k === chonK ? "chon" : ""} ${demK[k] ? "" : "rong"}" data-act="chonKhoi" data-k="${k}"><b>${k === "0" ? "Chưa xếp khối" : "Khối " + k}</b><span>${demK[k] || 0} đề</span></button>`).join("");
+    const ds = ov.quizzes.filter((q) => khoaK(q) === chonK);
+    document.getElementById("dsDe").innerHTML = ds.map(veDe).join("")
+      || `<div class="empty">${ov.quizzes.length ? (chonK === "0" ? "Mọi đề đều đã có khối." : `Khối ${chonK} chưa có đề nào.`) : "Chưa có đề nào."}</div>`;
+    datChepLink();
+    app.querySelectorAll("[data-khoi-de]").forEach((sel) => { sel.onchange = async () => {
+      const q = ov.quizzes.find((x) => x.id === Number(sel.dataset.khoiDe)); sel.disabled = true;
+      try {
+        const r = await api("t_dat_khoi_de", { p_quiz_id: q.id, p_khoi: sel.value ? Number(sel.value) : null });
+        demK[khoaK(q)]--; q.khoi = r.khoi; q.khoi_chot = r.khoi_chot; demK[khoaK(q)] = (demK[khoaK(q)] || 0) + 1;
+        toast(r.khoi ? `Đã xếp «${q.title}» vào Khối ${r.khoi}` : "Đã bỏ khối của đề"); veK();
+      } catch (e) { toast(e.message); sel.disabled = false; }
+    }; });
+  };
+  ACT.chonKhoi = (b) => { chonK = b.dataset.k; veK(); };
+  veK();
   ACT.nghe = (btn) => tBaiNghe(Number(btn.dataset.id), btn.dataset.t);
   ACT.word = async (btn) => { btn.disabled = true; try { const q = await api("t_get_quiz", { p_id: Number(btn.dataset.id) }); moDe(() => moWord(q)); } catch (e) { toast(e.message || String(e)); } finally { btn.disabled = false; } };
   ACT.luuThu = (btn) => {
@@ -2080,7 +2143,7 @@ async function tEditor(id) {
       if (!q) throw new Error("Không tìm thấy đề.");
       // De tieu hoc: trinh soan nay se lam mat anh / doan van -> mo trinh soan tieu hoc
       if (laTieuHoc(q.questions)) { skipRoute = true; location.hash = "#/t/qth/" + id; prevHash = location.hash; return moTH(() => tEditorTH(id)); }
-      E.title = q.title; E.qs = q.questions;
+      E.title = q.title; E.qs = q.questions; E.khoi = q.khoi;
     } catch (e) { app.querySelector("main").innerHTML = pageError(e, "#/t/quizzes"); return; }
   }
   leaveGuard = () => !E.dirty || confirm("Đề chưa lưu. Rời trang và bỏ các thay đổi?");
@@ -2112,6 +2175,7 @@ async function tEditor(id) {
     <h1 style="margin-top:8px">${id ? "Sửa đề" : "Soạn đề mới"}</h1>
     <div style="max-width:820px">
     <div class="field"><label class="f">Tên đề</label><input class="input" id="title" data-in="title" value="${esc(E.title)}" placeholder="Ví dụ: Unit 3 – Grade 8 – Vocabulary"></div>
+    ${khoiDeHtml(E.khoi)}
     <details class="box"><summary>📋 Cách 1: Dán câu hỏi dạng chữ</summary>
       <p class="small muted">Mỗi câu bắt đầu bằng số (<b>1.</b> hoặc <b>Câu 1:</b>), các lựa chọn bắt đầu bằng <b>A.</b> <b>B.</b> … (một dòng hoặc nhiều dòng). Đánh dấu đáp án đúng bằng dấu <b>*</b> trước chữ cái (vd <b>*B. goes</b>) hoặc thêm dòng <b>Đáp án: B</b>. Dòng không đánh số được coi là hướng dẫn cho các câu sau nó.</p>
       <pre class="prompt">Choose the best answer.
@@ -2205,6 +2269,7 @@ D. playing
       const qs = E.qs.map((q) => ({ stt: q.stt, question: q.question.trim(), options: q.options.map((o) => String(o).trim()), correct: q.correct, explanation: (q.explanation || "").trim(), instruction: (q.instruction || "").trim() }));
       const r = await api("t_save_quiz", { p_id: E.id, p_title: E.title, p_questions: qs });
       E.id = r.id; E.dirty = false;
+      await luuKhoiDe(r.id);
       msg.innerHTML = "";
       toast("Đã lưu đề");
       if (r.cham_lai && r.cham_lai.thay_doi) moDe(() => baoChamLai(r.cham_lai));
@@ -2507,11 +2572,78 @@ async function veKhoaMay() {
     : '<p class="muted small">Chưa có khoá nào.</p>';
 }
 
+/* ---------------- chuong thong bao (goc tren trang GV) ---------------- */
+// Hien so phieu dang ky moi (chua xem, chua xu ly). Tu cap nhat moi 90 giay khi trang dang mo.
+// Sau nay them loai thong bao khac: t_thong_bao tra them dong co 'loai' khac, them nhanh trong tbDong().
+const ACT_CHUNG = {};
+const TB = { so: 0, luc: 0, timer: null };
+function tbChu(n) { return n > 99 ? "99+" : String(n); }
+function chuongHtml() {
+  return `<span class="tb-o"><button class="btn btn-sm tb-nut" id="tbNut" data-act="tbMo" aria-label="Thông báo" title="Thông báo">🔔<b class="tb-so" id="tbSo"${TB.so ? "" : " hidden"}>${tbChu(TB.so)}</b></button>
+    <div class="tb-ds" id="tbDs" hidden></div></span>`;
+}
+function tbVeSo() {
+  const b = document.getElementById("tbSo");
+  if (b) { b.hidden = !TB.so; b.textContent = tbChu(TB.so); }
+}
+async function tbCapNhat() {
+  if (!S.token || !S.user || S.user.role !== "teacher") return;
+  TB.luc = Date.now();
+  try { TB.so = (await api("t_thong_bao", { p_gon: true })).so_moi || 0; tbVeSo(); } catch (e) { TB.luc = 0; /* mang loi: lan sau thu lai */ }
+}
+function tbBatDau() {
+  if (Date.now() - TB.luc > 60000) setTimeout(tbCapNhat, 0);
+  if (TB.timer) return;
+  const dangMo = () => document.visibilityState === "visible" && document.getElementById("tbNut");
+  TB.timer = setInterval(() => { if (dangMo()) tbCapNhat(); }, 90000);
+  document.addEventListener("visibilitychange", () => { if (dangMo() && Date.now() - TB.luc > 60000) tbCapNhat(); });
+  document.addEventListener("click", (e) => {
+    const ds = document.getElementById("tbDs");
+    if (ds && !ds.hidden && !e.target.closest(".tb-o")) ds.hidden = true;
+  });
+}
+function tbDong(x) {
+  // Bam so dien thoai thi goi luon (data-act="noop": khong mo phieu, khong chan lien ket tel:)
+  return `<div class="tb-dong${x.moi ? " moi" : ""}" data-act="tbMot" data-id="${x.id}">
+    <div class="row between" style="flex-wrap:nowrap;gap:6px"><b>${esc(x.ten)}</b><span class="small muted" style="white-space:nowrap">${fmtDT(x.luc)}</span></div>
+    <div class="small"><a href="tel:${esc(x.sdt)}" data-act="noop">📞 ${esc(x.sdt)}</a> · ${esc(x.khoi)}</div>
+    ${x.loi_nhan ? `<div class="small muted tb-nhan">“${esc(x.loi_nhan)}”</div>` : ""}</div>`;
+}
+ACT_CHUNG.tbMo = async () => {
+  const ds = document.getElementById("tbDs");
+  if (!ds) return;
+  if (!ds.hidden) { ds.hidden = true; return; }
+  ds.hidden = false;
+  ds.innerHTML = spinner();
+  let r;
+  try { r = await api("t_thong_bao", { p_gon: false }); } catch (e) { ds.innerHTML = `<p class="small" style="padding:12px">${esc(e.message)}</p>`; return; }
+  TB.so = r.so_moi || 0; TB.luc = Date.now(); tbVeSo();
+  ds.innerHTML = `<div class="tb-dau"><b>📩 Phiếu đăng ký</b>${TB.so ? '<button class="btn btn-sm" data-act="tbHet">✓ Đã xem tất cả</button>' : ""}</div>
+    ${r.ds.length ? r.ds.map(tbDong).join("") : '<p class="small muted" style="padding:12px">Chưa có phiếu nào.</p>'}
+    <a class="tb-cuoi" href="#/t/dang-ky">Xem tất cả phiếu →</a>`;
+};
+ACT_CHUNG.tbMot = async (el) => {
+  const id = Number(el.dataset.id);
+  document.getElementById("tbDs").hidden = true;
+  if (el.classList.contains("moi")) {
+    try { await api("t_da_xem_thong_bao", { p_loai: "dang_ky", p_id: id }); TB.so = Math.max(0, TB.so - 1); } catch (e) { /* van mo phieu */ }
+  }
+  go("#/t/dang-ky?id=" + id);
+};
+ACT_CHUNG.tbHet = async () => {
+  try { await api("t_da_xem_thong_bao", { p_loai: "dang_ky", p_id: null }); } catch (e) { return toast(e.message, 4000); }
+  TB.so = 0; tbVeSo();
+  document.querySelectorAll(".tb-dong.moi").forEach((d) => d.classList.remove("moi"));
+  const b = document.querySelector('[data-act="tbHet"]'); if (b) b.remove();
+  toast("Đã đánh dấu đã xem tất cả");
+};
+
 /* ---------------- phieu dang ky tu van (tu website) ---------------- */
-async function tDangKy() {
+async function tDangKy(query) {
   app.innerHTML = tShell("dangky", spinner());
   ACT.retry = () => route();
-  let chua = true;
+  const moId = Number(query && query.get("id")) || 0; // mo tu chuong thong bao: hien ca phieu da xu ly
+  let chua = !moId;
   const main = app.querySelector("main");
   const ve = async () => {
     main.innerHTML = `<div class="row between" style="margin-bottom:10px"><h1 style="margin:0">📩 Phiếu đăng ký tư vấn</h1>
@@ -2519,7 +2651,7 @@ async function tDangKy() {
       <p class="small muted">Phụ huynh gửi từ website msninh.vn. Phiếu tự xoá sau 12 tháng. Số điện thoại chỉ dùng để tư vấn.</p><div id="ds">${spinner()}</div>`;
     let ds;
     try { ds = await api("t_ds_dang_ky", { p: { chua_xu_ly: chua } }); } catch (e) { document.getElementById("ds").innerHTML = pageError(e); return; }
-    document.getElementById("ds").innerHTML = ds.length ? ds.map((r) => `<div class="card dk-card ${r.da_xu_ly ? "dk-xong" : ""}">
+    document.getElementById("ds").innerHTML = ds.length ? ds.map((r) => `<div class="card dk-card ${r.da_xu_ly ? "dk-xong" : ""} ${r.id === moId ? "dk-mo" : ""}" id="dk${r.id}">
         <div class="row between"><div><b style="font-size:17px">${esc(r.ten_phu_huynh)}</b> <span class="badge">${esc(r.khoi)}</span></div>
           <span class="small muted">${fmtDT(r.created_at)}</span></div>
         <div style="margin:6px 0"><a class="btn btn-sm btn-gold" href="tel:${esc(r.sdt)}">📞 ${esc(r.sdt)}</a>
@@ -2529,6 +2661,8 @@ async function tDangKy() {
           <span class="small">Đã gọi / đã xử lý</span>
           <input class="input grow" data-ch="gc" data-id="${r.id}" value="${esc(r.ghi_chu_gv || "")}" placeholder="Ghi chú (vd: hẹn học thử thứ 7)" maxlength="300" style="min-height:38px;padding:6px 10px"></div>
       </div>`).join("") : `<div class="empty">${chua ? "🎉 Không còn phiếu nào chưa xử lý." : "Chưa có phiếu đăng ký nào."}</div>`;
+    const the = moId && document.getElementById("dk" + moId);
+    if (the) the.scrollIntoView({ block: "center" });
   };
   const luu = async (id, p) => {
     try { await api("t_xu_ly_dang_ky", { p_id: id, p_da_xu_ly: p.xl, p_ghi_chu: p.gc }); toast("Đã lưu"); }
