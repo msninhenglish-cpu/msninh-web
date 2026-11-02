@@ -424,10 +424,10 @@ function demHtml() {
   return `<section class="pub-in bo-dem" id="boDem" aria-label="Số liệu hoạt động">${DEM_THE.map(([k, t], i) => `<div class="bd-the bd-c${i}" data-k="${k}"${k === "dang_hoc" ? " hidden" : ""}>
     <b class="bd-so">${k === "dang_hoc" ? '<i class="bd-cham"></i>' : ""}<span>–</span></b><small>${t}</small></div>`).join("")}</section>`;
 }
-// Moi lan mo trang = 1 luot (tai lai cung tab khong tinh them). Ma ngau nhien dung 1 lan, khong lien quan IP. May tu dong khong dem.
+// Moi lan tai trang = 1 luot, ke ca tai lai (co chot 2/11/2026); chuyen muc trong trang khong tinh. Ma ngau nhien dung 1 lan, khong lien quan IP. May tu dong khong dem.
 function demMay() {
   try {
-    if (navigator.webdriver || sessionStorage.getItem("kt_dem_phien")) return null;
+    if (navigator.webdriver || DEM.da_dem) return null;
     return Array.from(crypto.getRandomValues(new Uint8Array(16)), (x) => x.toString(16).padStart(2, "0")).join("");
   } catch (e) { return null; }
 }
@@ -466,7 +466,7 @@ async function demGoi() {
       body: JSON.stringify({ p_may: may, p_token: S.user && S.user.role === "student" ? S.token : null }) });
     if (!r.ok) throw new Error(r.status);
     DEM.so = await r.json();
-    if (may) try { sessionStorage.setItem("kt_dem_phien", "1"); } catch (e) {}
+    if (may) DEM.da_dem = true;
     demVe();
   } catch (e) {
     if (!DEM.so) { const k = document.getElementById("boDem"); if (k) k.remove(); }   // loi mang: an han, khong hien so gia
