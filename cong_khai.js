@@ -224,6 +224,15 @@ function secT(t, sub) { return `<div class="sec-t"><h2>${t}</h2>${sub ? `<p>${su
 const CTA_TU_VAN = `<a class="btn btn-lg pub-btn-yellow" href="#/dang-ky-tu-van">${ic("pen")} ${LOI_KEU_GOI}</a>`;
 const SIZES_THE = "(min-width: 960px) 360px, (min-width: 600px) 50vw, 100vw";
 
+// Dan so dien thoai dau trang cho bang dong duoi (doi font tai xong moi do lai)
+function canDongHot() {
+  const hop = document.querySelector(".pub-top-hot"), so = hop && hop.querySelector("b"), duoi = hop && hop.querySelector("small");
+  if (!so || !duoi || !hop.offsetWidth) return;
+  so.style.letterSpacing = "0px";
+  const a = so.parentElement, conLai = duoi.offsetWidth - (a.offsetWidth - so.offsetWidth);
+  so.style.letterSpacing = Math.max(0, Math.min(8, (conLai - so.offsetWidth) / so.textContent.length)).toFixed(2) + "px";
+}
+
 function pubShell(active, title, inner) {
   document.title = (title ? title + " · " : "") + "Anh ngữ Ms.Ninh – " + KHAU_HIEU;
   const vao = S.token && S.user ? (S.user.role === "teacher" ? "#/t" : "#/") : "#/login";
@@ -249,6 +258,8 @@ function pubShell(active, title, inner) {
     <a class="pub-float" href="#/dang-ky-tu-van">ĐĂNG KÝ HỌC</a>
     <div class="pub-mbar"><a href="tel:${so}">${ic("phone")}Gọi</a><a href="https://zalo.me/${so}" target="_blank" rel="noopener">${ic("chat")}Zalo</a><a class="dk" href="#/dang-ky-tu-van">${ic("pen")}Đăng ký</a></div>
   </div>`;
+  canDongHot();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(canDongHot);
   ACT.menu = (b) => {
     const l = document.getElementById("pubLinks");
     const mo = l.classList.toggle("open");

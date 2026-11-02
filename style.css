@@ -336,7 +336,7 @@ table.t tr.row-ok td { background: #f2fbf6; }
 .pub-top-hot { text-align: right; display: flex; flex-direction: column; align-items: flex-end; }
 .pub-top-hot a { display: flex; align-items: center; gap: 8px; color: var(--cam); text-decoration: none; }
 .pub-top-hot a .ic { width: 30px; height: 30px; padding: 6px; border-radius: 50%; background: #fff1e4; }
-.pub-top-hot b { font-size: 26px; letter-spacing: .5px; }
+.pub-top-hot b { font-size: 32px; letter-spacing: 3px; white-space: nowrap; line-height: 1.15; }
 .pub-top-hot small { color: var(--muted); }
 .pub-m-call, .pub-burger { display: none; }
 .pub-bar { background: var(--pri); position: sticky; top: 0; z-index: 30; box-shadow: 0 2px 10px rgba(40, 60, 130, .15); }
