@@ -266,7 +266,7 @@ function pubShell(active, title, inner) {
 }
 
 function lienHeHtml(day_du) {
-  const map = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(LIEN_HE.dia_chi);
+  const map = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent("ANH NGỮ MS.NINH");
   const tel = (s) => `<a href="tel:${esc(soDT(s))}"><b>${esc(s)}</b></a>`;
   return [
     LIEN_HE.dia_chi && `<div class="lh">${ic("pin")}<div>${esc(LIEN_HE.dia_chi)}${LIEN_HE.ghi_chu_dia_chi ? ` <span class="nhat">(${esc(LIEN_HE.ghi_chu_dia_chi)})</span>` : ""} · <a href="${map}" target="_blank" rel="noopener">Xem bản đồ</a></div></div>`,
@@ -389,7 +389,7 @@ function danhGiaHtml() {
 function coSoHtml() {
   return `<div class="pub-campus">${anhThe(CO_SO.anh, 400, 225, "(min-width: 760px) 320px, 100vw")}
     <div><h3>Cơ sở Sông Công</h3>${lienHeHtml(false)}<ul class="ticks">${CO_SO.y.map((y) => `<li>${ic("check")}${esc(y)}</li>`).join("")}</ul>
-    <div class="pub-cta"><a class="btn btn-gold" href="tel:${soDT()}">${ic("phone")} Gọi cô</a><a class="btn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(LIEN_HE.dia_chi)}" target="_blank" rel="noopener">${ic("pin")} Xem bản đồ</a></div></div></div>`;
+    <div class="pub-cta"><a class="btn btn-gold" href="tel:${soDT()}">${ic("phone")} Gọi cô</a><a class="btn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent("ANH NGỮ MS.NINH")}" target="_blank" rel="noopener">${ic("pin")} Xem bản đồ</a></div></div></div>`;
 }
 
 /* ---------------- trang chu ---------------- */
