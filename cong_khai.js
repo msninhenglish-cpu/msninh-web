@@ -419,9 +419,9 @@ function bannerHtml() {
 /* ---------------- Bo dem trang chu (muc 26): so that tu may chu, khong ten HS ---------------- */
 // 1 ham public_so_lieu. Goi bang fetch de trang chu khong phai tai thu vien Supabase. Chi goi khi tab dang mo, moi 80-120 giay.
 const DEM = { so: null, luc: 0, dang: false, timer: null };
-const DEM_THE = [["dang_hoc", "Học sinh đang học"], ["truy_cap", "Lượt truy cập hôm nay"], ["bai_nop", "Bài nộp hôm nay"], ["bai_lam", "Bài đã làm trên hệ thống"]];
+const DEM_THE = [["dang_hoc", "Học sinh đang học", 0], ["truy_cap", "Lượt truy cập hôm nay", 1], ["truy_cap_thang", "Lượt truy cập trong tháng", 4], ["bai_nop", "Bài nộp hôm nay", 2], ["bai_lam", "Bài đã làm trên hệ thống", 3]];
 function demHtml() {
-  return `<section class="pub-in bo-dem" id="boDem" aria-label="Số liệu hoạt động">${DEM_THE.map(([k, t], i) => `<div class="bd-the bd-c${i}" data-k="${k}"${k === "dang_hoc" ? " hidden" : ""}>
+  return `<section class="pub-in bo-dem" id="boDem" aria-label="Số liệu hoạt động">${DEM_THE.map(([k, t, c]) => `<div class="bd-the bd-c${c}" data-k="${k}"${k === "dang_hoc" ? " hidden" : ""}>
     <b class="bd-so">${k === "dang_hoc" ? '<i class="bd-cham"></i>' : ""}<span>–</span></b><small>${t}</small></div>`).join("")}</section>`;
 }
 // Moi lan tai trang = 1 luot, ke ca tai lai (co chot 2/11/2026); chuyen muc trong trang khong tinh. Ma ngau nhien dung 1 lan, khong lien quan IP. May tu dong khong dem.
