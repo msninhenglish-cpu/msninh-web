@@ -416,9 +416,75 @@ function bannerHtml() {
       ${BANNER_ANH.length > 1 ? `<div class="bn-dots">${BANNER_ANH.map((_, i) => `<button data-act="slide" data-i="${i}" aria-label="Xem ảnh ${i + 1}"></button>`).join("")}</div>` : ""}</div>
     <div class="bn-col">${noi_dung}</div></div></section>`;
 }
+/* ---------------- Bo dem trang chu (muc 26): so that tu may chu, khong ten HS ---------------- */
+// 1 ham public_so_lieu. Goi bang fetch de trang chu khong phai tai thu vien Supabase. Chi goi khi tab dang mo, moi 80-120 giay.
+const DEM = { so: null, luc: 0, dang: false, timer: null };
+const DEM_THE = [["dang_hoc", "Học sinh đang học"], ["truy_cap", "Lượt truy cập hôm nay"], ["bai_nop", "Bài nộp hôm nay"], ["bai_lam", "Bài đã làm trên hệ thống"]];
+function demHtml() {
+  return `<section class="pub-in bo-dem" id="boDem" aria-label="Số liệu hoạt động">${DEM_THE.map(([k, t], i) => `<div class="bd-the bd-c${i}" data-k="${k}"${k === "dang_hoc" ? " hidden" : ""}>
+    <b class="bd-so">${k === "dang_hoc" ? '<i class="bd-cham"></i>' : ""}<span>–</span></b><small>${t}</small></div>`).join("")}</section>`;
+}
+// Moi lan mo trang = 1 luot (tai lai cung tab khong tinh them). Ma ngau nhien dung 1 lan, khong lien quan IP. May tu dong khong dem.
+function demMay() {
+  try {
+    if (navigator.webdriver || sessionStorage.getItem("kt_dem_phien")) return null;
+    return Array.from(crypto.getRandomValues(new Uint8Array(16)), (x) => x.toString(16).padStart(2, "0")).join("");
+  } catch (e) { return null; }
+}
+function demChay(el, den) {
+  const tu = el._so || 0;
+  el._so = den;
+  if (tu === den) { el.textContent = den.toLocaleString("vi-VN"); return; }
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { el.textContent = den.toLocaleString("vi-VN"); return; }
+  const dau = performance.now();
+  const buoc = (t) => {
+    if (el._so !== den) return;
+    const x = Math.min(1, (t - dau) / 900);
+    el.textContent = Math.round(tu + (den - tu) * (1 - Math.pow(1 - x, 3))).toLocaleString("vi-VN");
+    if (x < 1) requestAnimationFrame(buoc);
+  };
+  requestAnimationFrame(buoc);
+}
+function demVe() {
+  const k = document.getElementById("boDem");
+  if (!k || !DEM.so) return;
+  let n = 0;
+  k.querySelectorAll(".bd-the").forEach((the) => {
+    const v = DEM.so[the.dataset.k], co = typeof v === "number";
+    the.hidden = !co;
+    if (co) { n++; demChay(the.querySelector("span"), v); }
+  });
+  k.dataset.n = n;
+}
+async function demGoi() {
+  if (DEM.dang) return;
+  DEM.dang = true; DEM.luc = Date.now();
+  const may = demMay();
+  try {
+    const r = await fetch(String(CFG.SUPABASE_URL).replace(/\/$/, "") + "/rest/v1/rpc/public_so_lieu", {
+      method: "POST", headers: { "Content-Type": "application/json", apikey: CFG.SUPABASE_KEY },
+      body: JSON.stringify({ p_may: may, p_token: S.user && S.user.role === "student" ? S.token : null }) });
+    if (!r.ok) throw new Error(r.status);
+    DEM.so = await r.json();
+    if (may) try { sessionStorage.setItem("kt_dem_phien", "1"); } catch (e) {}
+    demVe();
+  } catch (e) {
+    if (!DEM.so) { const k = document.getElementById("boDem"); if (k) k.remove(); }   // loi mang: an han, khong hien so gia
+  } finally { DEM.dang = false; }
+}
+function demBatDau() {
+  const canGoi = () => document.visibilityState === "visible" && (document.getElementById("boDem") || (S.token && S.user && S.user.role === "student"));
+  if (!DEM.timer) {
+    DEM.timer = setInterval(() => { if (canGoi()) demGoi(); }, 80000 + Math.random() * 40000);
+    document.addEventListener("visibilitychange", () => { if (canGoi() && Date.now() - DEM.luc > 60000) demGoi(); });
+  }
+  if (Date.now() - DEM.luc > 60000 && (canGoi() || demMay())) demGoi();
+}
+
 function pubHome() {
   pubShell("trang-chu", "", `
     ${bannerHtml()}
+    ${demHtml()}
     <section class="pub-in pub-quick">
       <a href="#/login"><span class="pub-ic c1">${ic("laptop")}</span><b>Bài tập online</b><small>Làm bài, có điểm ngay</small></a>
       <a href="#/login"><span class="pub-ic c2">${ic("chart")}</span><b>Kết quả học tập</b><small>Điểm & biểu đồ tiến bộ</small></a>
@@ -441,6 +507,8 @@ function pubHome() {
       <div class="g2 pub-contact">${formTuVan(true)}<div class="card">${lienHeHtml(true)}<div class="pub-cta" style="margin-top:12px">
         <a class="btn btn-gold" href="tel:${soDT()}">${ic("phone")} Gọi cô</a><a class="btn" href="https://zalo.me/${soDT()}" target="_blank" rel="noopener">${ic("chat")} Nhắn Zalo</a></div>
         <h4 class="pub-conn-h">Kết nối với Ms.Ninh</h4>${mangXaHoi(false)}</div></div></div></section>`);
+  demVe();
+  demBatDau();
 }
 
 /* ---------------- trang con ---------------- */

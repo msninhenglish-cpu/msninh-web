@@ -2809,3 +2809,4 @@ async function tDangKy(query) {
 
 /* ================= khoi dong ================= */
 route();
+demBatDau();
