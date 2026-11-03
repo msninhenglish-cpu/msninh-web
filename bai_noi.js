@@ -294,7 +294,23 @@ function noiGanQuay(d, aid, xong) {
 }
 
 /* ---------------- GIAO VIEN: xem + cham ---------------- */
-async function tNoi(asgId) {
+// Moi bai noi co ban AI chua duyet tren toan trung tam. Bam vao mo dung bai; khong co duyet hang loat.
+async function tNoiDuyet() {
+  app.innerHTML = tShell("home", spinner());
+  ACT.retry = () => route();
+  let d;
+  try { d = await api("t_bai_noi_cho_duyet"); } catch (e) { app.querySelector("main").innerHTML = pageError(e, "#/t"); return; }
+  app.querySelector("main").innerHTML = `<a href="#/t" class="small">‹ Bài đã giao</a>
+    <h1 style="margin-top:8px">🎤 Bài nói chờ cô duyệt (${d.tong})</h1>
+    <p class="muted" style="margin-top:0">Điểm AI chỉ là gợi ý. Học sinh chỉ thấy sau khi cô duyệt từng bài.</p>
+    ${d.rows.map((r) => `<a class="card tap row between" style="gap:8px;flex-wrap:wrap;text-decoration:none;color:inherit" href="#/t/noi/${r.assignment_id}?mo=${r.id}">
+      <div class="grow"><b>${esc(r.ho_ten)}</b> <span class="small muted">${esc(r.lop || "")}${r.lop ? " · " : ""}mã ${esc(r.ma_hs)}</span>
+        <div class="small">${esc(r.bai_giao)} · bài nói ${r.so + 1}</div></div>
+      <span class="small"><b>${r.diem != null ? `🤖 AI gợi ý ${noiSo(r.diem)}/10` : "🤖 AI chưa cho điểm"}</b></span></a>`).join("") || '<div class="empty">Không còn bài nào chờ duyệt 🎉</div>'}
+    ${d.tong > d.rows.length ? `<p class="small muted">Đang hiện ${d.rows.length} bài nộp sớm nhất. Duyệt bớt rồi mở lại để xem tiếp.</p>` : ""}`;
+}
+
+async function tNoi(asgId, moId) {
   app.innerHTML = tShell("home", spinner());
   ACT.retry = () => route();
   let d;
@@ -302,7 +318,7 @@ async function tNoi(asgId) {
   let loc = "cho";
   const ve = () => {
     const ds = d.rows.filter((r) => loc === "tat_ca" || (loc === "cho" ? r.sao == null : r.sao != null));
-    app.querySelector("main").innerHTML = `<a href="#/t/a/${asgId}" class="small">‹ Kết quả bài giao</a>
+    app.querySelector("main").innerHTML = `<a href="${moId ? "#/t/noi-duyet" : `#/t/a/${asgId}`}" class="small">‹ ${moId ? "Danh sách chờ duyệt" : "Kết quả bài giao"}</a>
       <h1 style="margin-top:8px">🎤 Chấm bài nói</h1><p class="muted" style="margin-top:0">${esc(d.title)} · ${d.ds.length} bài nói / em · ${d.rows.length} bài đã nộp · <b>${d.rows.filter((r) => r.sao == null).length} chờ chấm</b></p>
       <div class="seg" style="max-width:420px;margin-bottom:12px">${[["cho", "Chờ chấm"], ["da", "Đã chấm"], ["tat_ca", "Tất cả"]].map(([k, t]) => `<label class="${loc === k ? "on" : ""}" data-act="noiLoc" data-k="${k}">${t}</label>`).join("")}</div>
       ${ds.map((r) => `<div class="card row between" style="gap:8px;flex-wrap:wrap"><div class="grow"><b>${esc(r.ho_ten)}</b> <span class="small muted">mã ${esc(r.ma_hs)} · ${esc(r.lop || "")}</span>
@@ -337,7 +353,7 @@ async function tNoi(asgId) {
       try {
         const kq = await api("t_cham_noi", { p_id: r.id, p_sao: r.ai.diem, p_nhan_xet: r.ai.nhan_xet || "" });
         if (kq.error) throw new Error(kq.error);
-        r.sao = Number(r.ai.diem); r.nhan_xet = r.ai.nhan_xet || null; boUrl(); closeSheet(); toast("Đã duyệt"); ve();
+        r.sao = Number(r.ai.diem); r.nhan_xet = r.ai.nhan_xet || null; boUrl(); closeSheet(); toast("Đã duyệt"); if (moId) go("#/t/noi-duyet"); else ve();
       } catch (e) { toast(e.message, 4000); }
     });
     ACT.noiLuu = (btn) => busy(btn, async () => {
@@ -346,7 +362,7 @@ async function tNoi(asgId) {
         const nx = document.getElementById("noiNx").value;
         const kq = await api("t_cham_noi", { p_id: r.id, p_sao: sao, p_nhan_xet: nx });
         if (kq.error) throw new Error(kq.error);
-        r.sao = sao; r.nhan_xet = nx.trim() || null; boUrl(); closeSheet(); toast("Đã chấm"); ve();
+        r.sao = sao; r.nhan_xet = nx.trim() || null; boUrl(); closeSheet(); toast("Đã chấm"); if (moId) go("#/t/noi-duyet"); else ve();
       } catch (e) { toast(e.message, 4000); }
     });
     if (r.da_xoa) return;
@@ -361,4 +377,5 @@ async function tNoi(asgId) {
     } catch (e) { const o = document.getElementById("noiPhat"); if (o) o.innerHTML = errBox(e); }
   };
   ve();
+  if (moId && d.rows.some((x) => x.id === moId)) ACT.noiMo({ dataset: { id: moId } });
 }

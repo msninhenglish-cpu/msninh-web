@@ -230,7 +230,8 @@ async function route() {
         case "q": return tEditor(p[2] === "new" ? null : +p[2]);
         case "qth": return moTH(() => tEditorTH(p[2] === "new" ? null : +p[2]));
         case "nh": return moNH(() => tNganHang(query));
-        case "noi": return moNoi(() => tNoi(+p[2]));
+        case "noi": return moNoi(() => tNoi(+p[2], +query.get("mo") || null));
+        case "noi-duyet": return moNoi(() => tNoiDuyet());
         case "nhs": return moTH(() => tEditorTH(null, { id: p[2] === "new" ? null : +p[2], khoi: query.get("khoi"), unit: query.get("unit"), bo_sach: query.get("bo"), ten_unit: query.get("ten") }));
         case "de": return moDe(() => tDe(+p[2]));
         case "classes": return tClasses();
@@ -871,7 +872,7 @@ function taiNoiJs() {
   if (window.sNoi) return Promise.resolve();
   return new Promise((ok, loi) => {
     const s = document.createElement("script");
-    s.src = "bai_noi.js?v=5";
+    s.src = "bai_noi.js?v=6";
     s.onload = () => ok(); s.onerror = () => loi(new Error("Không tải được phần bài nói."));
     document.head.appendChild(s);
   });
@@ -1759,7 +1760,7 @@ async function tHome() {
       <div class="row" style="margin-top:8px;flex-wrap:nowrap"><div class="bar grow"><i style="width:${pct}%"></i></div><span class="small"><b>${a.n_done}</b>/${a.n_target} đã nộp</span></div>
       ${a.archived ? "" : linkHtml(linkBai(quizOf(a), a.id))}</a>`;
   };
-  let html = `<div class="row between" style="margin-bottom:12px"><h1 style="margin:0">Bài đã giao</h1><a class="btn btn-primary" href="#/t/new">+ Giao bài mới</a></div>`;
+  let html = `<div class="row between" style="margin-bottom:12px"><h1 style="margin:0">Bài đã giao</h1><a class="btn btn-primary" href="#/t/new">+ Giao bài mới</a></div><div id="noiChoDuyet"></div>`;
   if (!ov.classes.length || !ov.quizzes.length) {
     html += `<div class="card"><h2>Bắt đầu</h2><ol style="margin:0;padding-left:20px" class="stack">
       <li>${ov.classes.length ? "✅" : ""} <a href="#/t/classes">Tạo lớp và nhập danh sách học sinh</a></li>
@@ -1769,6 +1770,11 @@ async function tHome() {
   html += active.map(card).join("") || '<div class="empty">Chưa giao bài nào.</div>';
   if (arch.length) html += `<details class="box"><summary>Đã lưu trữ (${arch.length})</summary><div style="margin-top:12px">${arch.map(card).join("")}</div></details>`;
   app.querySelector("main").innerHTML = html;
+  // The «bai noi cho duyet»: khong chan trang; loi hoac khong co bai thi khong hien
+  api("t_bai_noi_cho_duyet").then((d) => {
+    const o = document.getElementById("noiChoDuyet");
+    if (o && d.tong) o.innerHTML = `<a class="card tap noi-cho-the" href="#/t/noi-duyet"><b>🎤 ${d.tong} bài nói chờ cô duyệt</b><span class="small muted">AI đã gợi ý điểm. Học sinh chỉ thấy sau khi cô duyệt ›</span></a>`;
+  }).catch(() => {});
 }
 
 // Link lam bai de gui nhom lop: de co ma de (tu phan mem cham diem) -> /kiemtra/<ma>; de web -> /baivenha/khoi<X>/<ma_web>; con lai -> link rieng bai giao
