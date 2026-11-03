@@ -200,6 +200,7 @@ async function route() {
   ACT = {};
   prevHash = location.hash;
   window.scrollTo(0, 0);
+  demDongVe();
   const h = location.hash.slice(1) || "/";
   const [pathPart, qs] = h.split("?");
   const p = pathPart.split("/").filter(Boolean);

@@ -266,6 +266,12 @@ function pubShell(active, title, inner) {
     b.setAttribute("aria-expanded", mo); b.innerHTML = ic(mo ? "close" : "menu");
   };
   ACT.dangKy = guiDangKy;
+  // Chi khi bam moi nap ban do Google, de trang mo nhe
+  ACT.banDoMo = (b) => {
+    const f = document.createElement("iframe");
+    f.src = BAN_DO_NHUNG; f.title = "Bản đồ đến Anh ngữ Ms.Ninh"; f.loading = "lazy"; f.referrerPolicy = "no-referrer"; f.allowFullscreen = true;
+    b.closest(".ban-do").appendChild(f); b.remove();
+  };
   ACT.slide = (el) => { const t = document.getElementById("bnTrack"); if (t) t.scrollTo({ left: t.clientWidth * Number(el.dataset.i), behavior: "smooth" }); };
   const tr = document.getElementById("bnTrack"); // chi trang chu co banner
   if (tr && BANNER_ANH.length > 1) {
@@ -276,8 +282,11 @@ function pubShell(active, title, inner) {
   }
 }
 
+// Tim theo ten: da doi chieu ra dung 433 Cach Mang Thang Tam, Song Cong (3/11/2026)
+const BAN_DO_LINK = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent("ANH NGỮ MS.NINH");
+const BAN_DO_NHUNG = "https://www.google.com/maps?output=embed&hl=vi&q=" + encodeURIComponent("ANH NGỮ MS.NINH");
 function lienHeHtml(day_du) {
-  const map = "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent("ANH NGỮ MS.NINH");
+  const map = BAN_DO_LINK;
   const tel = (s) => `<a href="tel:${esc(soDT(s))}"><b>${esc(s)}</b></a>`;
   return [
     LIEN_HE.dia_chi && `<div class="lh">${ic("pin")}<div>${esc(LIEN_HE.dia_chi)}${LIEN_HE.ghi_chu_dia_chi ? ` <span class="nhat">(${esc(LIEN_HE.ghi_chu_dia_chi)})</span>` : ""} · <a href="${map}" target="_blank" rel="noopener">Xem bản đồ</a></div></div>`,
@@ -400,7 +409,9 @@ function danhGiaHtml() {
 function coSoHtml() {
   return `<div class="pub-campus">${anhThe(CO_SO.anh, 400, 225, "(min-width: 760px) 320px, 100vw")}
     <div><h3>Cơ sở Sông Công</h3>${lienHeHtml(false)}<ul class="ticks">${CO_SO.y.map((y) => `<li>${ic("check")}${esc(y)}</li>`).join("")}</ul>
-    <div class="pub-cta"><a class="btn btn-gold" href="tel:${soDT()}">${ic("phone")} Gọi cô</a><a class="btn" href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent("ANH NGỮ MS.NINH")}" target="_blank" rel="noopener">${ic("pin")} Xem bản đồ</a></div></div></div>`;
+    <div class="pub-cta"><a class="btn btn-gold" href="tel:${soDT()}">${ic("phone")} Gọi cô</a></div></div></div>
+    <div class="ban-do" id="banDo"><div class="ban-do-hang">${ic("pin")}<div class="grow">${esc(LIEN_HE.dia_chi || "")}</div>
+      <button type="button" class="btn btn-primary" data-act="banDoMo">Xem bản đồ</button><a class="btn" href="${BAN_DO_LINK}" target="_blank" rel="noopener">Mở Google Maps</a></div></div>`;
 }
 
 /* ---------------- trang chu ---------------- */
@@ -479,12 +490,30 @@ async function demGoi() {
     DEM.so = await r.json();
     if (may) DEM.da_dem = true;
     demVe();
+    DEM.loi = false;
+    demDongVe();
   } catch (e) {
+    DEM.loi = true; demDongVe();
     if (!DEM.so) { const k = document.getElementById("boDem"); if (k) k.remove(); }   // loi mang: an han, khong hien so gia
   } finally { DEM.dang = false; }
 }
+// Dong chu cuoi trang sau dang nhap: dung lai so DEM, khong goi them khi doi trang. Khong co so hoac loi thi an.
+function demDongVe() {
+  const k = document.getElementById("demDong");
+  if (!k) return;
+  const p0 = location.hash.slice(1).split("?")[0].split("/").filter(Boolean)[0];
+  if (!S.token || !S.user || pubRoute(p0) || ["login", "setup", "quiz"].includes(p0)) { k.hidden = true; return; }
+  if (!DEM.so && !DEM.dang && Date.now() - DEM.luc > 60000) demGoi();
+  const so = (t) => { const v = DEM.so && DEM.so[t]; return typeof v === "number" ? v.toLocaleString("vi-VN") : null; };
+  const ds = [[so("truy_cap"), "lượt truy cập hôm nay"], [so("bai_nop"), "bài nộp hôm nay"], [so("bai_lam"), "bài đã làm"]].filter((x) => x[0] !== null);
+  k.textContent = "Toàn trung tâm: " + ds.map((x) => x[0] + " " + x[1]).join(" · ");
+  k.hidden = DEM.loi || !ds.length;
+}
 function demBatDau() {
-  const canGoi = () => document.visibilityState === "visible" && (document.getElementById("boDem") || (S.token && S.user && S.user.role === "student"));
+  const hs = () => S.token && S.user && S.user.role === "student";
+  const canGoi = () => document.visibilityState === "visible" && (document.getElementById("boDem") || hs() || demDongCu());
+  // Giao vien khong can bao dang hoc: lam moi dong chu moi 5 phut la du
+  const demDongCu = () => { const k = document.getElementById("demDong"); return k && !k.hidden && Date.now() - DEM.luc > 300000; };
   if (!DEM.timer) {
     DEM.timer = setInterval(() => { if (canGoi()) demGoi(); }, 80000 + Math.random() * 40000);
     document.addEventListener("visibilitychange", () => { if (canGoi() && Date.now() - DEM.luc > 60000) demGoi(); });
