@@ -1,6 +1,6 @@
 /* Bai noi quay video (muc 22, GD2, 29/10/2026) — chi tai khi mo #/noi/<lan lam> (HS) hoac #/t/noi/<bai giao> (GV).
  * HS: MediaRecorder 360p ~500 kbps (hoac chi ghi am), toi da gioi_han_giay, xem lai / quay lai / «Hoàn thành» -> ve tai -> bucket rieng tu video_noi.
- * GV: ve xem 10 phut -> tai video qua Storage (nhu signed URL) -> cham 1-10 sao + nhan xet.
+ * GV: ve xem 10 phut -> tai video qua Storage (nhu signed URL) -> cham 0-10 (bac 0,5) + nhan xet; muc 27: khung «AI gợi ý» (chi GV thay).
  */
 "use strict";
 
@@ -76,7 +76,59 @@ function noiChonMime(video) {
 }
 const noiMimeGoc = (m) => String(m || "").split(";")[0] || "video/webm";
 const noiGiay = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
-function noiSao(n, to) { return n ? `<span class="noi-sao${to ? " to" : ""}">${"★".repeat(n)}<span class="faint">${"★".repeat(10 - n)}</span></span> <b>${n}/10</b>` : ""; }
+const noiSo = (n) => String(Number(n)).replace(".", ",");
+function noiSao(n, to) { if (n === null || n === undefined) return ""; const d = Math.floor(n); return `<span class="noi-sao${to ? " to" : ""}">${"★".repeat(d)}<span class="faint">${"★".repeat(10 - d)}</span></span> <b>${noiSo(n)}/10</b>`; }
+
+// Do am luong khi quay (muc 27): chi de nhac, khong dung den ban ghi. Khong do duoc thi tra null / mang rong -> khong nhac gi.
+function noiDoAm(luong) {
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC || !luong.getAudioTracks().length) return null;
+    const ac = new AC(), an = ac.createAnalyser(), cam = ac.createGain();
+    if (!an.getFloatTimeDomainData) { ac.close().catch(() => {}); return null; }
+    an.fftSize = 2048; cam.gain.value = 0;   // am = 0 ra loa: chi de trinh duyet chiu chay node
+    ac.createMediaStreamSource(luong).connect(an); an.connect(cam); cam.connect(ac.destination);
+    if (ac.state === "suspended") ac.resume().catch(() => {});
+    const buf = new Float32Array(an.fftSize);
+    let mau = [], hen = null;
+    const lay = () => {
+      try {
+        if (ac.state !== "running") return;
+        an.getFloatTimeDomainData(buf);
+        let s = 0; for (let k = 0; k < buf.length; k++) s += buf[k] * buf[k];
+        mau.push(Math.sqrt(s / buf.length));
+      } catch (e) { /* bo */ }
+    };
+    return { chay: () => { mau = []; clearInterval(hen); hen = setInterval(lay, 100); }, dung: () => { clearInterval(hen); hen = null; return mau; },
+      tat: () => { clearInterval(hen); try { ac.close().catch(() => {}); } catch (e) { /* bo */ } } };
+  } catch (e) { return null; }
+}
+// Xet 1 lan quay -> loi moi quay lai ("" = on). Mau toan 0 tuyet doi = khong do duoc (Safari chua chay node), khong nhac.
+function noiXetAm(mau, giay, t) {
+  const ds = (mau || []).slice().sort((a, b) => a - b), p95 = ds.length >= 10 ? ds[Math.floor(ds.length * 0.95)] : null;
+  const coDo = p95 !== null && ds[ds.length - 1] > 0;
+  if (coDo && p95 < 0.008) return "Cô gần như chưa nghe thấy tiếng em. Em kiểm tra micro rồi nói to, rõ nhé.";
+  const soTu = String(t.van_ban_mau || "").replace(/<[^>]*>/g, " ").split(/\s+/).filter(Boolean).length;
+  const can = t.luot && t.luot.length ? t.luot.length * 2 : soTu >= 3 ? soTu * 0.3 : 2;
+  if (giay < can) return t.luot && t.luot.length ? "Bài quay hơi ngắn. Em trả lời hết các câu giúp cô nhé." : soTu >= 3 ? "Bài quay hơi ngắn. Em đọc hết bài giúp cô nhé." : "Bài quay hơi ngắn. Em nói lại rõ hơn giúp cô nhé.";
+  if (coDo && p95 < 0.02) return "Tiếng em hơi nhỏ, cô nghe chưa rõ. Em nói to hơn, để máy gần em hơn nhé.";
+  return "";
+}
+// Khung «AI goi y» (chi GV): ban nhap, khong tu luu. Co bam «Duyet» moi hien cho HS; da cham roi thi khong duyet nhanh de khoi ghi de nham.
+function noiAiHtml(ai, daCham) {
+  const TIN = { cao: ["alert-ok", "cao"], vua: ["", "vừa"], thap: ["alert-warn", "thấp, cô nên nghe lại"] }, tin = TIN[ai.do_tin] || TIN.vua;
+  const phan = [["noi_dung", "Nội dung", 4], ["phat_am", "Phát âm", 4], ["toc_do", "Tốc độ", 2]].filter(([k]) => ai[k] !== undefined && ai[k] !== null);
+  return `<div class="noi-ai"><div class="row between" style="gap:8px"><b>🤖 AI gợi ý</b><span class="small muted">bản nháp, học sinh không thấy</span></div>
+    <div class="noi-ai-so">${ai.diem !== undefined && ai.diem !== null ? `<b>${noiSo(ai.diem)}</b><small>/10</small>` : '<span class="muted small">AI chưa cho điểm</span>'}
+      ${phan.map(([k, t, m]) => `<span class="badge">${t} ${noiSo(ai[k])}/${m}</span>`).join(" ")}</div>
+    <div class="alert ${tin[0]} noi-ai-tin">Độ tin của AI: <b>${tin[1]}</b></div>
+    ${ai.tu_can_luyen && ai.tu_can_luyen.length ? `<div class="small"><b>Từ cần luyện:</b> ${ai.tu_can_luyen.map((x) => `<span class="badge gold">${esc(x)}</span>`).join(" ")}</div>` : ""}
+    ${ai.loi_noi ? `<div class="small"><b>Máy nghe được:</b> <span class="muted">${esc(ai.loi_noi)}</span></div>` : ""}
+    ${ai.nhan_xet ? `<div class="small"><b>Nhận xét:</b> ${esc(ai.nhan_xet)}</div>` : ""}
+    ${ai.ghi_chu ? `<div class="small muted">Ghi chú: ${esc(ai.ghi_chu)}</div>` : ""}
+    <div class="row" style="gap:8px;flex-wrap:wrap;margin-top:6px">${ai.diem !== undefined && ai.diem !== null && !daCham ? '<button type="button" class="btn btn-sm btn-primary grow" data-act="noiDuyetAi">✅ Duyệt, hiện cho học sinh</button>' : ""}
+      ${(ai.diem !== undefined && ai.diem !== null) || ai.nhan_xet ? '<button type="button" class="btn btn-sm grow" data-act="noiDungAi">✏️ Sửa rồi lưu</button>' : ""}</div></div>`;
+}
 
 // The nhiem vu (HS thay; GV xem thu cung dung)
 function noiTheHtml(t, i, da, nut) {
@@ -89,7 +141,7 @@ function noiTheHtml(t, i, da, nut) {
     ${t.van_ban_mau ? `<div class="noi-mau">${fmt(t.van_ban_mau).replace(/\n/g, "<br>")}</div>` : ""}
     ${t.luot ? `<ol class="noi-luot">${t.luot.map((l) => `<li><span class="hd-hoi-nho">❓ ${fmt(l.hoi)}</span>${l.tra_loi_goi_y && !t.an_goi_y ? `<br><span class="muted">💬 ${fmt(l.tra_loi_goi_y)}</span>` : ""}</li>`).join("")}</ol>
       <p class="small muted" style="margin:4px 0 0">Khi quay: máy hỏi từng câu, em trả lời${t.tu_chuyen_giay ? `, sau ${t.tu_chuyen_giay} giây tự sang câu sau` : ", rồi bấm <b>Tiếp</b>"}.</p>` : ""}
-    ${da ? `<div class="alert ${da.sao ? "alert-ok" : ""}" style="margin:10px 0 0">${da.sao ? `⭐ Cô chấm: ${noiSao(da.sao)}${da.nhan_xet ? `<div style="margin-top:4px">💬 ${esc(da.nhan_xet)}</div>` : ""}` : `✅ Em đã nộp${da.giay ? " (" + noiGiay(da.giay) + ")" : ""} · <b>chờ cô chấm</b>`}</div>` : ""}
+    ${da ? `<div class="alert ${da.sao != null ? "alert-ok" : ""}" style="margin:10px 0 0">${da.sao != null ? `⭐ Cô chấm: ${noiSao(da.sao)}${da.nhan_xet ? `<div style="margin-top:4px">💬 ${esc(da.nhan_xet)}</div>` : ""}` : `✅ Em đã nộp${da.giay ? " (" + noiGiay(da.giay) + ")" : ""} · <b>chờ cô chấm</b>`}</div>` : ""}
     ${nut || ""}</div>`;
 }
 
@@ -117,8 +169,8 @@ async function sNoi(aid) {
 // Gan cac nut quay (ACT.noiQuay...) cho bai noi d cua lan lam aid; xong() goi khi nop xong 1 bai. Tra ve ham tat camera.
 // Dung chung: trang #/noi va cau «🎤 Bài nói» ngay trong bai lam (sQuiz).
 function noiGanQuay(d, aid, xong) {
-  let luong = null, may = null, hen = null;
-  const dung = () => { clearInterval(hen); hen = null; if (may && may.state !== "inactive") { try { may.stop(); } catch (e) { /* bo */ } } if (luong) luong.getTracks().forEach((t) => t.stop()); luong = null; };
+  let luong = null, may = null, hen = null, amDo = null;
+  const dung = () => { clearInterval(hen); hen = null; if (may && may.state !== "inactive") { try { may.stop(); } catch (e) { /* bo */ } } if (amDo) { amDo.tat(); amDo = null; } if (luong) luong.getTracks().forEach((t) => t.stop()); luong = null; };
   ACT.noiQuay = async (b) => {
     const i = +b.dataset.i, t = d.ds[i], video = t.ghi !== "am_thanh", han = t.gioi_han_giay || 60;
     const chay = noiCoChay(t), hd = !!(t.luot && t.luot.length);
@@ -142,6 +194,7 @@ function noiGanQuay(d, aid, xong) {
       nut('<button type="button" class="btn btn-block" data-act="noiDong">Đóng</button>'); return;
     }
     if (video) { const v = document.getElementById("noiXem"); v.srcObject = luong; }
+    amDo = noiDoAm(luong);
     let manh = [], bd = 0, blob = null, giay = 0;
     // Doi dap: lan luot hoi -> goi y -> be noi -> Tiep (hoac tu chuyen), tat ca trong 1 lan quay
     let hdI = -1, hdHen = null, hdAm = null;
@@ -186,10 +239,14 @@ function noiGanQuay(d, aid, xong) {
         if (video && v) { v.srcObject = null; v.muted = false; v.controls = true; v.src = url; v.play().catch(() => {}); }
         else if (!video) document.querySelector(".noi-khung").innerHTML = `<audio controls src="${url}" style="width:100%"></audio><div class="noi-dong-ho">${noiGiay(giay)}</div>`;
         const qua = blob.size > NOI_MAX;
-        document.getElementById("noiMsg").innerHTML = qua ? errBox(`Bài quay ${Math.round(blob.size / 1048576)} MB, quá 8 MB. Em quay ngắn hơn nhé.`) : `<p class="small muted center">Em xem lại. Ưng ý thì bấm <b>Hoàn thành</b>.</p>`;
+        const nhac = qua ? "" : noiXetAm(amDo ? amDo.dung() : null, giay, t);   // chi nhac, van nop duoc
+        document.getElementById("noiMsg").innerHTML = qua ? errBox(`Bài quay ${Math.round(blob.size / 1048576)} MB, quá 8 MB. Em quay ngắn hơn nhé.`)
+          : nhac ? `<div class="alert alert-warn" id="noiNhac" style="margin-top:8px"><b>🔁 Quay lại nhé!</b> ${nhac}<div class="small muted">Nếu em đã ưng ý thì vẫn bấm <b>Hoàn thành</b> được.</div></div>`
+          : `<p class="small muted center">Em xem lại. Ưng ý thì bấm <b>Hoàn thành</b>.</p>`;
         nut(`<button type="button" class="btn grow" data-act="noiLai">🔁 Quay lại</button>${qua ? "" : '<button type="button" class="btn btn-gold grow" data-act="noiNop">✅ Hoàn thành</button>'}`);
       };
       may.start(1000); bd = Date.now();
+      if (amDo) amDo.chay();
       if (chay) { if (bc) bc.dung(); bc = noiChay(document.getElementById("noiChay"), toc); }
       if (hd) { hdI = -1; document.getElementById("hdHoi").textContent = "Chuẩn bị…"; hdHen = setTimeout(() => hdLuot(0), 1200); }
       document.querySelector(".noi-khung").classList.add("dang");
@@ -244,17 +301,17 @@ async function tNoi(asgId) {
   try { d = await api("t_bai_noi_ds", { p_assignment_id: asgId }); if (d.error) throw new Error(d.error); } catch (e) { app.querySelector("main").innerHTML = pageError(e, "#/t"); return; }
   let loc = "cho";
   const ve = () => {
-    const ds = d.rows.filter((r) => loc === "tat_ca" || (loc === "cho" ? !r.sao : !!r.sao));
+    const ds = d.rows.filter((r) => loc === "tat_ca" || (loc === "cho" ? r.sao == null : r.sao != null));
     app.querySelector("main").innerHTML = `<a href="#/t/a/${asgId}" class="small">‹ Kết quả bài giao</a>
-      <h1 style="margin-top:8px">🎤 Chấm bài nói</h1><p class="muted" style="margin-top:0">${esc(d.title)} · ${d.ds.length} bài nói / em · ${d.rows.length} bài đã nộp · <b>${d.rows.filter((r) => !r.sao).length} chờ chấm</b></p>
+      <h1 style="margin-top:8px">🎤 Chấm bài nói</h1><p class="muted" style="margin-top:0">${esc(d.title)} · ${d.ds.length} bài nói / em · ${d.rows.length} bài đã nộp · <b>${d.rows.filter((r) => r.sao == null).length} chờ chấm</b></p>
       <div class="seg" style="max-width:420px;margin-bottom:12px">${[["cho", "Chờ chấm"], ["da", "Đã chấm"], ["tat_ca", "Tất cả"]].map(([k, t]) => `<label class="${loc === k ? "on" : ""}" data-act="noiLoc" data-k="${k}">${t}</label>`).join("")}</div>
       ${ds.map((r) => `<div class="card row between" style="gap:8px;flex-wrap:wrap"><div class="grow"><b>${esc(r.ho_ten)}</b> <span class="small muted">mã ${esc(r.ma_hs)} · ${esc(r.lop || "")}</span>
           <div class="small">🎤 Bài nói ${r.so + 1}: ${esc(NOI_MUC[(d.ds[r.so] || {}).muc_noi] || "")}${r.giay ? " · " + noiGiay(r.giay) : ""} · nộp ${fmtDT(r.nop_luc)}${r.kich_thuoc ? " · " + (r.kich_thuoc / 1048576).toFixed(1) + " MB" : ""}</div>
-          ${r.sao ? `<div>${noiSao(r.sao)}${r.nhan_xet ? ` <span class="small">💬 ${esc(r.nhan_xet)}</span>` : ""}</div>` : ""}</div>
+          ${r.sao != null ? `<div>${noiSao(r.sao)}${r.nhan_xet ? ` <span class="small">💬 ${esc(r.nhan_xet)}</span>` : ""}</div>` : ""}${r.ai && r.ai.diem != null ? `<div class="small muted">🤖 AI gợi ý ${noiSo(r.ai.diem)}/10${r.sao == null ? " · <b>chờ cô duyệt</b>" : ""}</div>` : ""}</div>
         ${r.da_xoa ? '<span class="badge" title="Đã tải về máy trung tâm và xoá trên mạng">💾 Đã tải về máy</span>' : ""}
-        <button class="btn btn-sm ${r.sao ? "" : "btn-primary"}" data-act="noiMo" data-id="${r.id}">${r.sao ? "Sửa điểm" : "▶ Xem & chấm"}</button></div>`).join("")
+        <button class="btn btn-sm ${r.sao != null ? "" : "btn-primary"}" data-act="noiMo" data-id="${r.id}">${r.sao != null ? "Sửa điểm" : "▶ Xem & chấm"}</button></div>`).join("")
       || `<div class="empty">${loc === "cho" ? "Không còn bài nào chờ chấm 🎉" : "Chưa có bài."}</div>`}
-      <p class="small muted">Video lưu riêng tư: chỉ cô xem được (mỗi lần mở một đường dẫn tạm 10 phút). Bài nói không tính vào điểm trắc nghiệm; sao + nhận xét hiện cho học sinh, phụ huynh và trong hồ sơ.</p>`;
+      <p class="small muted">Video lưu riêng tư: chỉ cô xem được (mỗi lần mở một đường dẫn tạm 10 phút). Bài nói không tính vào điểm trắc nghiệm; điểm + nhận xét của cô hiện cho học sinh, phụ huynh và trong hồ sơ.</p>`;
   };
   ACT.noiLoc = (el) => { loc = el.dataset.k; ve(); };
   let url = null;
@@ -262,18 +319,29 @@ async function tNoi(asgId) {
   cleanup = () => { boUrl(); closeSheet(); };
   ACT.noiMo = async (b) => {
     const r = d.rows.find((x) => x.id === +b.dataset.id), t = d.ds[r.so] || {};
-    let sao = r.sao || 0;
+    let sao = r.sao != null ? Number(r.sao) : null;
     openSheet(`<h2 style="margin:0">${esc(r.ho_ten)} — Bài nói ${r.so + 1}</h2>
       <p class="small muted" style="margin:2px 0 8px">${esc(NOI_MUC[t.muc_noi] || "")}${t.van_ban_mau ? " · mẫu: «" + esc(t.van_ban_mau.slice(0, 120)) + "»" : t.goi_y ? " · " + esc(t.goi_y) : ""}</p>
       <div id="noiPhat" class="noi-khung">${r.da_xoa ? '<div class="alert">💾 Video đã tải về máy trung tâm và xoá trên mạng. Cô vẫn chấm được.</div>' : spinner()}</div>
-      <div class="field" style="margin-top:10px"><label class="f">Số sao (1–10)</label><div class="noi-chon-sao" id="noiSao"></div></div>
+      ${r.ai ? noiAiHtml(r.ai, r.sao != null) : ""}
+      <div class="field" style="margin-top:10px"><label class="f">Điểm (0–10, mỗi bậc 0,5)</label><div class="noi-chon-sao"><span id="noiSao"></span><input class="input" id="noiDiem" type="number" inputmode="decimal" min="0" max="10" step="0.5" data-in="noiDiem" value="${sao === null ? "" : sao}" aria-label="Điểm"></div></div>
       <div class="field"><label class="f">Nhận xét cho bé <span class="faint">(bé và phụ huynh thấy)</span></label><textarea class="input" rows="2" id="noiNx" maxlength="1000">${esc(r.nhan_xet || "")}</textarea></div>
       <div class="row" style="gap:8px;flex-wrap:nowrap"><button type="button" class="btn grow" data-act="closeSheet">Đóng</button><button type="button" class="btn btn-primary grow" data-act="noiLuu">💾 Lưu</button></div>`);
-    const veSao = () => { document.getElementById("noiSao").innerHTML = Array.from({ length: 10 }, (_, k) => `<button type="button" class="${k < sao ? "on" : ""}" data-act="noiChonSao" data-n="${k + 1}" aria-label="${k + 1} sao">★</button>`).join("") + ` <b>${sao ? sao + "/10" : ""}</b>`; };
-    ACT.noiChonSao = (x) => { sao = +x.dataset.n; veSao(); };
+    const veSao = () => { document.getElementById("noiSao").innerHTML = Array.from({ length: 10 }, (_, k) => `<button type="button" class="${sao !== null && k < Math.floor(sao) ? "on" : ""}" data-act="noiChonSao" data-n="${k + 1}" aria-label="${k + 1} điểm">★</button>`).join(""); };
+    const datDiem = (n) => { sao = n; document.getElementById("noiDiem").value = n === null ? "" : n; veSao(); };
+    ACT.noiChonSao = (x) => datDiem(+x.dataset.n);
+    ACT["in:noiDiem"] = (el) => { sao = el.value === "" ? null : Number(el.value); veSao(); };
+    ACT.noiDungAi = () => { if (r.ai.diem != null) datDiem(Number(r.ai.diem)); if (r.ai.nhan_xet) document.getElementById("noiNx").value = r.ai.nhan_xet; toast("Đã điền sẵn. Cô sửa nếu cần rồi bấm Lưu."); };
     veSao();
+    ACT.noiDuyetAi = (btn) => busy(btn, async () => {
+      try {
+        const kq = await api("t_cham_noi", { p_id: r.id, p_sao: r.ai.diem, p_nhan_xet: r.ai.nhan_xet || "" });
+        if (kq.error) throw new Error(kq.error);
+        r.sao = Number(r.ai.diem); r.nhan_xet = r.ai.nhan_xet || null; boUrl(); closeSheet(); toast("Đã duyệt"); ve();
+      } catch (e) { toast(e.message, 4000); }
+    });
     ACT.noiLuu = (btn) => busy(btn, async () => {
-      if (!sao) { toast("Cô chọn số sao trước nhé."); return; }
+      if (sao === null || !(sao >= 0 && sao <= 10) || sao * 2 !== Math.trunc(sao * 2)) { toast("Cô nhập điểm từ 0 đến 10, mỗi bậc 0,5 nhé."); return; }
       try {
         const nx = document.getElementById("noiNx").value;
         const kq = await api("t_cham_noi", { p_id: r.id, p_sao: sao, p_nhan_xet: nx });

@@ -340,7 +340,7 @@ function moHocSinh(chay) {
   if (window.tHocSinh) return chay();
   app.innerHTML = tShell("hocsinh", spinner());
   const s = document.createElement("script");
-  s.src = "hoc_sinh.js?v=5";
+  s.src = "hoc_sinh.js?v=6";
   s.onload = () => chay();
   s.onerror = () => { app.querySelector("main").innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
   document.head.appendChild(s);
@@ -870,7 +870,7 @@ function taiNoiJs() {
   if (window.sNoi) return Promise.resolve();
   return new Promise((ok, loi) => {
     const s = document.createElement("script");
-    s.src = "bai_noi.js?v=4";
+    s.src = "bai_noi.js?v=5";
     s.onload = () => ok(); s.onerror = () => loi(new Error("Không tải được phần bài nói."));
     document.head.appendChild(s);
   });

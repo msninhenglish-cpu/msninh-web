@@ -801,6 +801,10 @@ mark.cho-dang { background: #ffe066; color: inherit; padding: 1px 4px; border-ra
 .noi-chon-sao { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; }
 .noi-chon-sao button { font-size: 28px; line-height: 1; padding: 2px; border: 0; background: none; color: #d9dee9; cursor: pointer; }
 .noi-chon-sao button.on { color: #f5b301; }
+.noi-chon-sao #noiSao { display: inline-flex; flex-wrap: wrap; } .noi-chon-sao .input { width: 86px; font-weight: 700; text-align: center; }
+.noi-ai { margin-top: 10px; padding: 10px 12px; border: 1px dashed var(--pri); border-radius: 12px; background: var(--pri-t2); display: grid; gap: 6px; }
+.noi-ai-so { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; } .noi-ai-so > b { font-size: 26px; color: var(--pri-d); line-height: 1; } .noi-ai-so > small { margin-left: -4px; color: var(--muted); }
+.noi-ai-tin { margin: 0; padding: 4px 10px; font-size: 13.5px; }
 .seg label.on { background: var(--pri); color: #fff; border-color: var(--pri); }
 
 /* Bo dem trang chu (muc 26) */

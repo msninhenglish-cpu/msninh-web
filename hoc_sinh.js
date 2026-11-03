@@ -118,8 +118,8 @@ async function tHoSo(id) {
   // Bai noi (muc 22): sao co cham, moi nhat truoc
   api("t_noi_hoc_sinh", { p_user_id: id }).then((n) => {
     const el = document.getElementById("hsNoi"); if (!el || !n || !n.rows || !n.rows.length) return;
-    el.innerHTML = `<h2>🎤 Bài nói${n.tb_sao ? ` <span class="small muted">· trung bình ${String(n.tb_sao).replace(".", ",")}/10 ⭐</span>` : ""}</h2><div class="table-wrap"><table class="t"><thead><tr><th>Ngày</th><th>Bài</th><th>Sao</th><th>Nhận xét</th></tr></thead><tbody>
-      ${n.rows.slice(0, 20).map((r) => `<tr><td class="small">${fmtDT(r.nop_luc)}</td><td class="wrap">${esc(r.bai)} · nói ${r.so + 1}</td><td>${r.sao ? `<b>${r.sao}/10</b> ⭐` : '<span class="badge gold">Chờ chấm</span>'}</td><td class="wrap small">${esc(r.nhan_xet || "")}</td></tr>`).join("")}</tbody></table></div>`;
+    el.innerHTML = `<h2>🎤 Bài nói${n.tb_sao != null ? ` <span class="small muted">· trung bình ${String(n.tb_sao).replace(".", ",")}/10 ⭐</span>` : ""}</h2><div class="table-wrap"><table class="t"><thead><tr><th>Ngày</th><th>Bài</th><th>Sao</th><th>Nhận xét</th></tr></thead><tbody>
+      ${n.rows.slice(0, 20).map((r) => `<tr><td class="small">${fmtDT(r.nop_luc)}</td><td class="wrap">${esc(r.bai)} · nói ${r.so + 1}</td><td>${r.sao != null ? `<b>${String(Number(r.sao)).replace(".", ",")}/10</b> ⭐` : '<span class="badge gold">Chờ chấm</span>'}</td><td class="wrap small">${esc(r.nhan_xet || "")}</td></tr>`).join("")}</tbody></table></div>`;
   }, () => {});
   const luu = async (btn, p) => {
     try { await api("t_sua_hoc_sinh", { p_user_id: id, p }); closeSheet(); toast("Đã lưu"); route(); }
