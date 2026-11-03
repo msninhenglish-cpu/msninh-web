@@ -266,12 +266,6 @@ function pubShell(active, title, inner) {
     b.setAttribute("aria-expanded", mo); b.innerHTML = ic(mo ? "close" : "menu");
   };
   ACT.dangKy = guiDangKy;
-  // Chi khi bam moi nap ban do Google, de trang mo nhe
-  ACT.banDoMo = (b) => {
-    const f = document.createElement("iframe");
-    f.src = BAN_DO_NHUNG; f.title = "Bản đồ đến Anh ngữ Ms.Ninh"; f.loading = "lazy"; f.referrerPolicy = "no-referrer"; f.allowFullscreen = true;
-    b.closest(".ban-do").appendChild(f); b.remove();
-  };
   ACT.slide = (el) => { const t = document.getElementById("bnTrack"); if (t) t.scrollTo({ left: t.clientWidth * Number(el.dataset.i), behavior: "smooth" }); };
   const tr = document.getElementById("bnTrack"); // chi trang chu co banner
   if (tr && BANNER_ANH.length > 1) {
@@ -280,6 +274,29 @@ function pubShell(active, title, inner) {
     const t = setInterval(() => { if (!tr.isConnected) return clearInterval(t); if (dung) return; i = (i + 1) % BANNER_ANH.length; tr.scrollTo({ left: tr.clientWidth * i, behavior: "smooth" }); }, 5000);
     cleanup = () => clearInterval(t);
   }
+  banDoTheoDoi();
+}
+
+// Sap cuon toi khung moi nap ban do Google, de trang mo nhe. Trinh duyet cu khong co IntersectionObserver: hien nut bam.
+function banDoTheoDoi() {
+  const k = document.querySelector(".ban-do-khung");
+  if (!k) return;
+  const nap = () => {
+    const f = document.createElement("iframe");
+    f.src = BAN_DO_NHUNG; f.title = "Bản đồ đến Anh ngữ Ms.Ninh"; f.referrerPolicy = "no-referrer"; f.allowFullscreen = true;
+    k.appendChild(f);
+  };
+  if (!("IntersectionObserver" in window)) {
+    k.hidden = true;
+    document.querySelector('[data-act="banDoMo"]').hidden = false;
+    ACT.banDoMo = (b) => { k.hidden = false; nap(); b.remove(); };
+    return;
+  }
+  const io = new IntersectionObserver((ds) => {
+    if (ds.some((d) => d.isIntersecting)) { io.disconnect(); nap(); }
+  }, { rootMargin: "300px 0px" });
+  io.observe(k);
+  cleanup = () => io.disconnect();
 }
 
 // Tim theo ten: da doi chieu ra dung 433 Cach Mang Thang Tam, Song Cong (3/11/2026)
@@ -411,7 +428,7 @@ function coSoHtml() {
     <div><h3>Cơ sở Sông Công</h3>${lienHeHtml(false)}<ul class="ticks">${CO_SO.y.map((y) => `<li>${ic("check")}${esc(y)}</li>`).join("")}</ul>
     <div class="pub-cta"><a class="btn btn-gold" href="tel:${soDT()}">${ic("phone")} Gọi cô</a></div></div></div>
     <div class="ban-do" id="banDo"><div class="ban-do-hang">${ic("pin")}<div class="grow">${esc(LIEN_HE.dia_chi || "")}</div>
-      <button type="button" class="btn btn-primary" data-act="banDoMo">Xem bản đồ</button><a class="btn" href="${BAN_DO_LINK}" target="_blank" rel="noopener">Mở Google Maps</a></div></div>`;
+      <button type="button" class="btn btn-primary" data-act="banDoMo" hidden>Xem bản đồ</button><a class="btn" href="${BAN_DO_LINK}" target="_blank" rel="noopener">Mở Google Maps</a></div><div class="ban-do-khung"></div></div>`;
 }
 
 /* ---------------- trang chu ---------------- */
