@@ -98,9 +98,10 @@ const PHUONG_PHAP = [
     buoc: ["Nghe – Nói – Đọc – Viết", "Làm bài kiểm tra tại lớp", "Kiểm tra miệng tại lớp", "Giao bài tập về nhà online", "Đạt yêu cầu mới kết thúc buổi học"] },
 ];
 
-// Doi ngu (co chot 11/10/2026: chi ghi "Co Ninh", khong ghi bang cap/kinh nghiem). Trung tam chi day Tieng Anh.
+// Doi ngu (co chot 11/10/2026: voi Co Ninh chi ghi ten, khong ghi bang cap/kinh nghiem; 5/11/2026 co them thay Dat, chi ghi bang va chung chi, co da xin phep). Trung tam chi day Tieng Anh.
 const GIAO_VIEN = [
   { ten: "Ms Ninh", vai_tro: "Quản lý chất lượng, trực tiếp giảng dạy", anh: "anh/co_ninh_tot_nghiep_300.webp", anh_2x: "anh/co_ninh_tot_nghiep_600.webp", gioi_thieu: "", bat: true },
+  { ten: "Thầy Nguyễn Xuân Đạt", vai_tro: "Giáo viên tiếng Anh", anh: "anh/gv_xuan_dat_300.webp", gioi_thieu: "Tốt nghiệp loại Giỏi ngành Ngôn ngữ Anh, Đại học Thái Nguyên. Chứng chỉ Aptis ESOL B2.", bat: true },
 ];
 
 // Chuong trinh hoc (bai tuyen sinh 2026–2027 + co chot gia)
