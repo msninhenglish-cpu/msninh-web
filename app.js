@@ -1767,9 +1767,26 @@ async function tHome() {
       <li>${ov.quizzes.length ? "✅" : ""} <a href="#/t/q/new">Soạn đề đầu tiên</a></li>
       <li>Giao bài cho lớp</li></ol></div>`;
   }
-  html += active.map(card).join("") || '<div class="empty">Chưa giao bài nào.</div>';
-  if (arch.length) html += `<details class="box"><summary>Đã lưu trữ (${arch.length})</summary><div style="margin-top:12px">${arch.map(card).join("")}</div></details>`;
+  html += ov.assignments.length ? '<div class="khoi-o" id="khoiO"></div><div id="dsBai"></div>' : '<div class="empty">Chưa giao bài nào.</div>';
   app.querySelector("main").innerHTML = html;
+  // Bai giao theo khoi cua de, giong Kho de: o Khoi 2…9 (+ khoi khac neu co) + «Chua xep khoi»; nho khoi bam lan truoc
+  if (ov.assignments.length) {
+    const khoaK = (a) => { const q = quizOf(a); return q && q.khoi ? String(q.khoi) : "0"; };
+    const demK = {}, tongK = {};
+    ov.assignments.forEach((a) => { const k = khoaK(a); tongK[k] = (tongK[k] || 0) + 1; if (!a.archived) demK[k] = (demK[k] || 0) + 1; });
+    const dsK = [...new Set(["2", "3", "4", "5", "6", "7", "8", "9", ...Object.keys(tongK).filter((k) => k !== "0")])].sort((a, b) => a - b).concat("0");
+    let chonK = LS.get("baiGiaoKhoi");
+    if (!dsK.includes(chonK)) chonK = dsK.find((k) => demK[k]) || dsK.find((k) => tongK[k]);
+    const veK = () => {
+      LS.set("baiGiaoKhoi", chonK);
+      document.getElementById("khoiO").innerHTML = dsK.map((k) => `<button type="button" class="khoi-nut ${k === chonK ? "chon" : ""} ${demK[k] ? "" : "rong"}" data-act="chonKhoi" data-k="${k}"><b>${k === "0" ? "Chưa xếp khối" : "Khối " + k}</b><span>${demK[k] || 0} bài</span></button>`).join("");
+      const dang = active.filter((a) => khoaK(a) === chonK), luu = arch.filter((a) => khoaK(a) === chonK);
+      document.getElementById("dsBai").innerHTML = (dang.map(card).join("") || `<div class="empty">${chonK === "0" ? "Không có bài nào chưa xếp khối." : `Khối ${chonK} chưa có bài đang giao.`}</div>`)
+        + (luu.length ? `<details class="box"><summary>Đã lưu trữ (${luu.length})</summary><div style="margin-top:12px">${luu.map(card).join("")}</div></details>` : "");
+    };
+    ACT.chonKhoi = (b) => { chonK = b.dataset.k; veK(); };
+    veK();
+  }
   // The «bai noi cho duyet»: khong chan trang; loi hoac khong co bai thi khong hien
   api("t_bai_noi_cho_duyet").then((d) => {
     const o = document.getElementById("noiChoDuyet");
@@ -1888,6 +1905,8 @@ async function tAssignForm(id, quizId, thoiGian) {
         p.mode = form.querySelector("input[name=mode]:checked").value;
         p.shuffle_questions = form.shq.checked; p.shuffle_options = form.sho.checked;
         const r = await api("t_create_assignment", { p });
+        const qGiao = ov.quizzes.find((q) => q.id === p.quiz_id);
+        LS.set("baiGiaoKhoi", qGiao && qGiao.khoi ? String(qGiao.khoi) : "0");  // ve Bai da giao thay ngay bai vua giao
         toast("Đã giao bài"); go("#/t/a/" + r.id);
       }
     } catch (e) { document.getElementById("err").innerHTML = errBox(e); window.scrollTo(0, 0); }
