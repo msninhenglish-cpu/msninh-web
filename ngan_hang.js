@@ -4,7 +4,9 @@
 "use strict";
 
 const NH_KN = [["nghe", "🎧 Nghe"], ["noi", "🗣 Nói"], ["doc", "📖 Đọc"], ["viet", "✏️ Viết"], ["khac", "🔤 Khác"]];
-const NH_DANG = { hinh: "Nhìn hình", dien: "Điền đoạn văn", nghe: "Nghe chọn", chon: "Chọn", nghe_chu: "Nghe – chữ cái", dung_sai: "Đúng / Sai", ghep: "Nối câu – tranh", dien_chu: "Điền chữ cái" };
+const NH_DANG = { hinh: "Nhìn hình", dien: "Điền đoạn văn", nghe: "Nghe chọn", chon: "Chọn", nghe_chu: "Nghe – chữ cái", dung_sai: "Đúng / Sai", ghep: "Nối câu – tranh", dien_chu: "Điền chữ cái", go_tu: "Gõ cả từ", sap_xep: "Sắp xếp câu" };
+// Muc do «Tao bai nhanh» (muc 29): mac dinh De = nhu truoc khi co cau Kho
+const NH_MUC_DO = [["de", "😊 Dễ"], ["kho", "💪 Khó"], ["tron", "🔀 Trộn"]];
 const NH_MUC = { nhan_biet: "Nhận biết", thong_hieu: "Thông hiểu", van_dung: "Vận dụng" };
 const NH_NGUON = { sach: "📗 Sách", ai: "🤖 AI", co: "👩‍🏫 Cô" };
 // Mac dinh «Tao bai nhanh» (~10 phut lop 2; uu tien nghe > noi > doc > viet). Noi = so bai noi (phan noi rieng, muc 22): lop 1-5 mac dinh 1
@@ -35,16 +37,19 @@ async function tNganHang(query) {
   let khoi = Number(query.get("khoi")) || dsKhoi[0] || 2;
   const unitXem = query.get("unit"), boXem = query.get("bo") || "";
   const chon = new Set();
-  let so = nhMacDinh(khoi);
+  let so = nhMacDinh(khoi), mucDo = "de";
   thGanNut();
 
   const units = () => cay.filter((x) => x.khoi === khoi);
-  const coSan = (kn) => units().filter((u) => chon.has(nhKhoaUnit(u))).reduce((n, u) => n + (u.theo_ky_nang[kn] || 0), 0);
+  const coSan = (kn) => units().filter((u) => chon.has(nhKhoaUnit(u)))
+    .reduce((n, u) => n + (mucDo === "tron" ? u.theo_ky_nang[kn] || 0 : mucDo === "kho" ? (u.theo_ky_nang_kho || {})[kn] || 0 : (u.theo_ky_nang[kn] || 0) - ((u.theo_ky_nang_kho || {})[kn] || 0)), 0);
   const veTao = () => {
     const el = document.getElementById("taoNhanh"); if (!el) return;
     const ds = units().filter((u) => chon.has(nhKhoaUnit(u)));
     el.innerHTML = `<h2 style="margin-bottom:4px">⚡ Tạo bài nhanh</h2>
       <p class="small muted" style="margin-top:0">Tick các Unit ở trên, chọn số câu mỗi kỹ năng → web rút ngẫu nhiên → mở trình soạn để cô xem thử / sửa → «Lưu &amp; giao bài». Cả lớp làm cùng đề, thứ tự câu và đáp án tự xáo. Một bài nối câu – tranh tính là 1 câu. Câu «không còn trong sách» không được rút.</p>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:8px"><b class="small">Mức độ:</b>${NH_MUC_DO.map(([k, t]) => `<button type="button" class="btn btn-sm ${mucDo === k ? "btn-primary" : ""}" data-act="nhMucDo" data-k="${k}" aria-pressed="${mucDo === k}">${t}</button>`).join("")}
+        <span class="small muted">${mucDo === "de" ? "câu cơ bản (như trước nay)" : mucDo === "kho" ? "chỉ câu nâng cao: gõ cả từ, sắp xếp câu, ngữ pháp…" : "cả câu dễ và câu khó"}</span></div>
       <div class="small" style="margin-bottom:8px">Đã chọn: ${ds.length ? ds.map((u) => `<b>Unit ${esc(u.unit)}</b>`).join(", ") : '<span class="muted">chưa chọn Unit nào</span>'}</div>
       <div class="row" style="gap:10px;flex-wrap:wrap">${NH_KN.map(([kn, ten]) => `<label class="small">${ten}${kn === "noi" ? " <span class=\"muted\">(bài)</span>" : ""} <input class="input" type="number" min="0" max="${kn === "noi" ? 10 : 30}" data-in="nhSo" data-kn="${kn}" value="${so[kn] || 0}" style="width:70px"> <span class="muted">(có ${coSan(kn)})</span></label>`).join("")}</div>
       ${coSan("noi") ? '<p class="small muted" style="margin:6px 0 0">🗣 Bài nói: học sinh quay video sau phần trắc nghiệm, cô chấm sao; không tính vào điểm tự chấm. Web rút xen kẽ các dạng (đối đáp, chant, từ…).</p>' : ""}
@@ -60,7 +65,7 @@ async function tNganHang(query) {
       ${ds.length ? ds.map((u) => `<div class="card row between" style="gap:10px">
         <label class="check" style="min-height:0"><input type="checkbox" data-ch="nhChon" data-u="${esc(nhKhoaUnit(u))}" ${chon.has(nhKhoaUnit(u)) ? "checked" : ""} aria-label="Chọn Unit ${esc(u.unit)} để tạo bài"></label>
         <div class="grow"><b>Unit ${esc(u.unit)}${u.ten_unit ? " – " + esc(u.ten_unit) : ""}</b>
-          <div class="small muted">${u.bo_sach ? esc(u.bo_sach) + " · " : ""}${u.so_muc} mục (${u.so_cau} câu)${u.so_an ? ` · đã ẩn ${u.so_an}` : ""}${u.so_het_sach ? ` · 📕 ${u.so_het_sach} không còn trong sách` : ""} · ${NH_KN.filter(([kn]) => u.theo_ky_nang[kn]).map(([kn, ten]) => `${ten} ${u.theo_ky_nang[kn]}`).join(" · ")}</div></div>
+          <div class="small muted">${u.bo_sach ? esc(u.bo_sach) + " · " : ""}${u.so_muc} mục (${u.so_cau} câu)${u.so_an ? ` · đã ẩn ${u.so_an}` : ""}${u.so_het_sach ? ` · 📕 ${u.so_het_sach} không còn trong sách` : ""}${u.so_kho ? ` · 💪 ${u.so_kho} khó` : ""} · ${NH_KN.filter(([kn]) => u.theo_ky_nang[kn]).map(([kn, ten]) => `${ten} ${u.theo_ky_nang[kn]}`).join(" · ")}</div></div>
         <div class="row"><a class="btn btn-sm" href="${nhLink(khoi, u)}">Xem câu</a><a class="btn btn-sm" href="${nhLinkThem(khoi, u)}">+ Thêm câu</a></div></div>`).join("")
         : `<div class="empty">Khối ${khoi} chưa có câu nào trong kho. Phần mềm Chấm điểm sẽ đẩy ngân hàng câu hỏi lên; cô cũng có thể bấm «+ Thêm Unit / câu của cô».</div>`}
       ${ds.length ? '<div class="card" id="taoNhanh"></div>' : ""}
@@ -79,7 +84,7 @@ async function tNganHang(query) {
       ${ds.map((it) => { const q = it.cau[0];
         return `<div class="card" style="${it.an ? "opacity:.55" : ""}"><div class="row between" style="gap:8px"><div class="grow">
           <b>${esc(NH_DANG[it.loai] || "Chọn")}${it.cau.length > 1 ? ` (${it.cau.length} cặp)` : ""}</b> <span class="small">${esc(plain(q.question)).slice(0, 80)}</span>
-          <div class="small muted">${NH_NGUON[it.nguon] || ""}${it.trang ? " · trang " + esc(it.trang) : ""}${it.ky_nang ? " · " + (NH_KN.find(([k]) => k === it.ky_nang) || ["", it.ky_nang])[1] : ""}${it.muc ? " · " + NH_MUC[it.muc] : ""}${it.sua_tren_web ? " · ✏️ cô đã sửa" : ""}${it.an ? " · 🙈 đang ẩn" : ""}${it.loi ? " · 🎲 đáp án sai web tự chọn mỗi lần tạo bài" : ""}${it.het_sach ? ' · <b style="color:var(--bad)">📕 không còn trong sách</b>' : ""}</div></div>
+          <div class="small muted">${NH_NGUON[it.nguon] || ""}${it.trang ? " · trang " + esc(it.trang) : ""}${it.ky_nang ? " · " + (NH_KN.find(([k]) => k === it.ky_nang) || ["", it.ky_nang])[1] : ""}${it.muc ? " · " + NH_MUC[it.muc] : ""}${it.muc_do === 2 ? " · 💪 Khó" : ""}${it.sua_tren_web ? " · ✏️ cô đã sửa" : ""}${it.an ? " · 🙈 đang ẩn" : ""}${it.loi ? " · 🎲 đáp án sai web tự chọn mỗi lần tạo bài" : ""}${it.het_sach ? ' · <b style="color:var(--bad)">📕 không còn trong sách</b>' : ""}</div></div>
           <div class="row" style="gap:4px"><a class="btn btn-sm" href="#/t/nhs/${it.id}">✏️ Sửa</a>
             <button type="button" class="btn btn-sm" data-act="nhAn" data-id="${it.id}" data-an="${it.an ? 0 : 1}">${it.an ? "👁 Hiện" : "🙈 Ẩn"}</button>
             ${it.het_sach ? `<button type="button" class="btn btn-sm" data-act="nhGiu" data-id="${it.id}">Giữ dùng tiếp</button>` : ""}
@@ -90,12 +95,13 @@ async function tNganHang(query) {
 
   ACT.nhKhoi = (b) => { go("#/t/nh?khoi=" + b.dataset.k); };
   ACT["ch:nhChon"] = (el) => { if (el.checked) chon.add(el.dataset.u); else chon.delete(el.dataset.u); veTao(); };
+  ACT.nhMucDo = (b) => { mucDo = b.dataset.k; veTao(); };
   ACT["in:nhSo"] = (el) => { so[el.dataset.kn] = Math.max(0, Math.min(el.dataset.kn === "noi" ? 10 : 30, Number(el.value) || 0)); };
   ACT.nhTao = (b) => busy(b, async () => {
     const ds = units().filter((u) => chon.has(nhKhoaUnit(u)));
     const bo = [...new Set(ds.map((u) => u.bo_sach))];
     try {
-      const r = await api("t_tao_bai_nhanh", { p: { khoi, units: ds.map((u) => u.unit), bo_sach: bo.length === 1 ? bo[0] : null, so: coSan("noi") ? so : Object.assign({}, so, { noi: 0 }), ten: document.getElementById("nhTen").value } });
+      const r = await api("t_tao_bai_nhanh", { p: { khoi, units: ds.map((u) => u.unit), bo_sach: bo.length === 1 ? bo[0] : null, so: coSan("noi") ? so : Object.assign({}, so, { noi: 0 }), muc_do: mucDo, ten: document.getElementById("nhTen").value } });
       if (r.thieu && r.thieu.length) toast("Kho chưa đủ câu: " + r.thieu.map((t) => `${(NH_KN.find(([k]) => k === t.ky_nang) || ["", t.ky_nang])[1]} có ${t.co}/${t.can}`).join(", ") + ". Web lấy hết số có.", 6000);
       else if (r.lap_tu && r.lap_tu.length) toast(`Đã tạo bài ${r.so_cau} câu. Các Unit này chỉ có ${r.so_tu} từ nên ${r.lap_tu.map((x) => `«${x.tu}»`).join(", ")} xuất hiện ${r.lap_tu[0].lan} lần. Muốn đa dạng hơn: chọn thêm Unit hoặc bớt số câu.`, 8000);
       else toast(`Đã tạo bài ${r.so_cau} câu${r.so_noi ? ` + ${r.so_noi} bài nói` : ""}. Cô xem thử rồi «Lưu & giao bài».`, 4000);

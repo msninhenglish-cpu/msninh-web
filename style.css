@@ -733,6 +733,18 @@ mark.cho-dang { background: #ffe066; color: inherit; padding: 1px 4px; border-ra
 .chu-nut { width: 62px; height: 62px; border-radius: 16px; border: 3px solid var(--line); background: #fff; font-size: 30px; font-weight: 700; cursor: pointer; box-shadow: 0 3px 0 var(--line); }
 .chu-nut:disabled { opacity: .3; cursor: default; }
 .chu-nut.xoa { background: var(--badbg); border-color: #f5b5b7; color: var(--bad); }
+/* muc 29: go ca tu, sap xep thanh cau */
+.go-goi-y { font-size: 30px !important; font-weight: 700; letter-spacing: 3px; text-align: center; color: var(--pri-d); }
+.go-nghia { text-align: center; color: var(--muted); font-size: 17px; margin-top: 4px; }
+.go-o { display: flex; gap: 8px; margin: 10px 0 4px; }
+.go-nhap { flex: 1; min-width: 0; font-size: 24px; font-weight: 700; text-align: center; min-height: 56px; }
+.xep-cau { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; min-height: 64px; padding: 10px; margin: 10px 0; border: 3px dashed var(--pri); border-radius: 16px; background: var(--pri-t2); }
+.xep-cau.rong { justify-content: center; }
+.xep-kho { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; margin: 4px 0 10px; }
+.xep-manh { min-height: 48px; padding: 6px 14px; border: 3px solid var(--line); border-radius: 14px; background: #fff; font-size: 20px; font-weight: 700; cursor: pointer; box-shadow: 0 3px 0 var(--line); touch-action: manipulation; }
+.xep-manh.dat { border-color: var(--pri); color: var(--pri-d); }
+.xep-manh:disabled { opacity: .3; cursor: default; }
+.xep-cau .xep-manh:disabled { opacity: 1; }
 .ghep { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .ghep-cot { display: flex; flex-direction: column; gap: 10px; }
 .ghep-cau { display: flex; align-items: center; gap: 8px; text-align: left; padding: 10px; min-height: 72px; border: 3px solid var(--line); border-radius: 16px; background: #fff; font-size: 18px; font-weight: 700; cursor: pointer; }
@@ -745,6 +757,11 @@ mark.cho-dang { background: #ffe066; color: inherit; padding: 1px 4px; border-ra
 .ghep-anh img { width: 100%; height: 96px; object-fit: contain; display: block; }
 .ghep-anh.co { border-color: var(--ok); }
 .ghep-anh .ghep-so { position: absolute; top: 6px; left: 6px; background: var(--ok); }
+/* ghep chu (hoi - dap, muc 29): cau hoi tren, cau tra loi duoi, moi dong 1 cau */
+.ghep.chu { grid-template-columns: 1fr; }
+.ghep.chu .ghep-anh { display: flex; align-items: center; min-height: 56px; padding: 8px 12px 8px 44px; text-align: left; font-size: 18px; font-weight: 700; }
+.ghep.chu .ghep-anh .ghep-so { top: 50%; transform: translateY(-50%); }
+.ghep-tl { display: block; }
 .mung { position: relative; text-align: center; overflow: hidden; padding-top: 8px; }
 .mung-sao { font-size: 52px; animation: th-nay .6s 2; }
 .mung-hoa { position: absolute; inset: 0; pointer-events: none; }

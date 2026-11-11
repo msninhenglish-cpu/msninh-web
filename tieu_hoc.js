@@ -8,15 +8,15 @@
 const TH_LOAI = {
   hinh: "🖼 Nhìn hình chọn đáp án", dien: "📝 Điền vào đoạn văn", nghe: "🎧 Nghe chọn đáp án", chon: "🔤 Chọn đáp án thường",
   nghe_chu: "🔡 Nghe âm → chạm chữ cái", dung_sai: "✅ Đúng / Sai với tranh", ghep: "🔗 Nối câu với tranh", dien_chu: "✏️ Điền chữ cái thiếu",
-  noi: "🎤 Nói (quay video)",
+  go_tu: "⌨️ Gõ cả từ", sap_xep: "🧩 Sắp xếp thành câu", noi: "🎤 Nói (quay video)",
 };
 const TH_LENH = {
   hinh: "Nhìn hình và chọn đáp án đúng.", dien: "Đọc đoạn văn và chọn từ đúng điền vào chỗ trống.",
   nghe: "Nghe và chọn đáp án đúng.", chon: "Chọn đáp án đúng.", nghe_chu: "Nghe và chạm vào chữ cái đúng.",
   dung_sai: "Nhìn tranh rồi chọn Đúng ✓ hoặc Sai ✗.", ghep: "Đọc câu và nối với tranh đúng.", dien_chu: "Chạm chữ cái để điền vào chỗ trống.",
-  noi: "Bấm 🔴 rồi nói to, rõ theo gợi ý.",
+  go_tu: "Nhìn hình và gõ cả từ.", sap_xep: "Sắp xếp các từ thành câu đúng.", noi: "Bấm 🔴 rồi nói to, rõ theo gợi ý.",
 };
-const TH_KN = { hinh: "doc", dien: "doc", nghe: "nghe", chon: "doc", nghe_chu: "nghe", dung_sai: "doc", ghep: "doc", dien_chu: "viet", noi: "noi" };
+const TH_KN = { hinh: "doc", dien: "doc", nghe: "nghe", chon: "doc", nghe_chu: "nghe", dung_sai: "doc", ghep: "doc", dien_chu: "viet", go_tu: "viet", sap_xep: "viet", noi: "noi" };
 // Bai noi (muc 22): khong co lua chon, luu rieng (bai_noi), co cham sao
 const TH_MUC_NOI = { chu: "Chữ cái", tu: "Từ theo tranh", cau: "Câu theo tranh", doan: "Đọc đoạn văn", hoi_thoai: "Hội thoại", chant: "Chant", bai_hat: "Bài hát", hoi_dap: "Đối đáp (hỏi – trả lời)" };
 const TH_CHU_CHAY = { cham: "🐢 Chữ chạy chậm", vua: "🚶 Chữ chạy vừa", nhanh: "🐇 Chữ chạy nhanh", tat: "Không chạy chữ" };
@@ -60,6 +60,9 @@ async function thTaiAnh(file) {
   return v.duong_dan;
 }
 
+// O nhap nhieu dong -> mang dong khong rong (muc 29)
+const thDong = (t) => String(t || "").split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+
 // Cau tu may chu -> the soan (gom cac cau «ghep» cung nhom thanh 1 the)
 function thVaoThe(qs) {
   const ds = [];
@@ -67,9 +70,9 @@ function thVaoThe(qs) {
     if (x.loai === "noi") { ds.push(Object.assign({ goi_y: "", van_ban_mau: "", gioi_han_giay: 60, ghi: "video", anh: null }, x)); return; }
     const q = Object.assign({ loai: "chon" }, x, { anh_lc: x.options.map((_, j) => (x.anh_lc || [])[j] || null) });
     if (q.loai === "ghep") {
-      const truoc = ds[ds.length - 1], cap = { cau: q.question, anh: q.anh_lc[q.correct] || null, stt: q.stt };
+      const truoc = ds[ds.length - 1], cap = { cau: q.question, anh: q.anh_lc[q.correct] || null, tl: q.options[q.correct] || "", stt: q.stt };
       if (truoc && truoc.loai === "ghep" && truoc.nhom === q.nhom) { truoc.cap.push(cap); truoc.tranh = q.anh_lc; return; }
-      ds.push(Object.assign(q, { cap: [cap], tranh: q.anh_lc }));
+      ds.push(Object.assign(q, { cap: [cap], tranh: q.anh_lc, ghep_chu: !q.anh_lc.some(Boolean), tl_ds: q.options }));
       return;
     }
     if (q.loai === "dien_chu") {
@@ -78,11 +81,15 @@ function thVaoThe(qs) {
       for (const c of q.dap_an_chu) { const j = con.indexOf(c); if (j >= 0) con.splice(j, 1); }
       q.chu_nhieu = con.join(" ");
     }
+    if (q.loai === "go_tu") q.dap_an_go_txt = (q.dap_an_go || [q.options[0] || ""]).join("\n");   // muc 29
+    if (q.loai === "sap_xep") { q.manh_txt = (q.manh || []).join(" | "); q.khac_txt = (q.dap_an_khac || []).join("\n"); }
     if (q.nghe_doan) q.nghe_doan = Object.assign({}, q.nghe_doan);
     ds.push(q);
   });
   // tranh nhieu cua the ghep = tranh khong thuoc cap nao
   ds.forEach((q) => { if (q.loai === "ghep") q.tranh_them = (q.tranh || []).filter((a) => a && !q.cap.some((c) => c.anh === a)); });
+  // ghep chu: cau tra loi nhieu = lua chon khong khop cap nao
+  ds.forEach((q) => { if (q.loai === "ghep" && q.ghep_chu) q.nhieu_chu = (q.tl_ds || []).filter((t) => !q.cap.some((c) => c.tl === t)).join("\n"); });
   return ds;
 }
 
@@ -158,6 +165,25 @@ async function tEditorTH(id, nh) {
         <div class="grid2"><div class="field"><label class="f">Các chữ cần điền (theo thứ tự)</label><input class="input" data-in="qf" data-i="${i}" data-f="dap_an_chu" value="${esc(q.dap_an_chu || "")}" placeholder="izza"></div>
           <div class="field"><label class="f">Chữ cái gây nhiễu thêm <span class="faint">(không bắt buộc)</span></label><input class="input" data-in="qf" data-i="${i}" data-f="chu_nhieu" value="${esc(q.chu_nhieu || "")}" placeholder="e o"></div></div>`;
     }
+    if (q.loai === "go_tu") {
+      return `<div class="field"><label class="f">Chữ gợi ý hiện cho bé <span class="faint">(vd: k _ _ _ _ _ _)</span></label><input class="input" data-in="qf" data-i="${i}" data-f="question" value="${esc(q.question || "")}" placeholder="k _ _ _ _ _ _"></div>
+        <div class="field"><label class="f">Đáp án chấp nhận <span class="faint">(mỗi dòng 1 cách viết đúng, tối đa 5; không phân biệt hoa thường)</span></label><textarea class="input" rows="2" data-in="qf" data-i="${i}" data-f="dap_an_go_txt" placeholder="kitchen">${esc(q.dap_an_go_txt || "")}</textarea></div>
+        <div class="field"><label class="f">Gợi ý nghĩa <span class="faint">(không bắt buộc, vd: thị trấn)</span></label><input class="input" data-in="qf" data-i="${i}" data-f="goi_y" value="${esc(q.goi_y || "")}"></div>`;
+    }
+    if (q.loai === "sap_xep") {
+      return `<div class="field"><label class="f">Câu hỏi / gợi ý <span class="faint">(không bắt buộc, vd nghĩa tiếng Việt)</span></label><input class="input" data-in="qf" data-i="${i}" data-f="question" value="${esc(q.question || "")}"></div>
+        <div class="field"><label class="f">Các mảnh theo <b>đúng thứ tự</b>, cách nhau bằng dấu <b>|</b> <span class="faint">(2–12 mảnh; web tự xáo cho bé)</span></label><input class="input" data-in="qf" data-i="${i}" data-f="manh_txt" value="${esc(q.manh_txt || "")}" placeholder="I | like | apples | ."></div>
+        <div class="field"><label class="f">Câu khác cũng đúng <span class="faint">(không bắt buộc; mỗi dòng 1 câu)</span></label><textarea class="input" rows="2" data-in="qf" data-i="${i}" data-f="khac_txt">${esc(q.khac_txt || "")}</textarea></div>`;
+    }
+    if (q.loai === "ghep" && q.ghep_chu) {
+      return `<label class="f">Các cặp câu hỏi – câu trả lời (2–6 cặp). Học sinh thấy câu trả lời đã xáo trộn.</label>
+        ${q.cap.map((c, j) => `<div class="th-lc" style="grid-template-columns:auto 1fr 1fr auto"><span class="ghep-so">${j + 1}</span>
+          <input class="input" data-in="cap" data-i="${i}" data-j="${j}" value="${esc(c.cau || "")}" placeholder="Hỏi: What time is it?">
+          <input class="input" data-in="capTl" data-i="${i}" data-j="${j}" value="${esc(c.tl || "")}" placeholder="Đáp: It's seven o'clock.">
+          <button type="button" class="icon-btn" data-act="capXoa" data-i="${i}" data-j="${j}" ${q.cap.length <= 2 ? "disabled" : ""} title="Xoá cặp">🗑</button></div>`).join("")}
+        ${q.cap.length < 6 ? `<button type="button" class="btn btn-sm" data-act="capThem" data-i="${i}">+ Thêm cặp</button>` : ""}
+        <div class="field" style="margin-top:8px"><label class="f">Câu trả lời nhiễu <span class="faint">(không khớp câu hỏi nào; mỗi dòng 1 câu, không bắt buộc)</span></label><textarea class="input" rows="2" data-in="qf" data-i="${i}" data-f="nhieu_chu">${esc(q.nhieu_chu || "")}</textarea></div>`;
+    }
     if (q.loai === "ghep") {
       return `<label class="f">Các cặp câu – tranh (2–6 cặp). Học sinh thấy tranh đã xáo trộn.</label>
         ${q.cap.map((c, j) => `<div class="th-lc" style="grid-template-columns:auto 1fr auto auto"><span class="ghep-so">${j + 1}</span>
@@ -214,7 +240,7 @@ async function tEditorTH(id, nh) {
     ${q.loai === "dien" ? (chungTruoc(i)
       ? `<div class="alert alert-ok small">↑ Dùng chung đoạn văn với ${nhanCau(dauNhom(i))}. <button type="button" class="btn btn-sm" data-act="tachDoan" data-i="${i}">✂ Đoạn văn riêng</button></div>`
       : `<div class="field"><label class="f">Đoạn văn <span class="faint">(đánh số chỗ trống bằng số câu: (${soCau(i)}) ____ ; các câu sau cùng dạng «Điền» tự dùng chung đoạn này)</span></label><textarea class="input" rows="4" data-in="doan" data-i="${i}">${esc(q.doan_van || "")}</textarea></div>`) : ""}
-    ${TH_CO_NGHE.includes(q.loai) ? phanAmThanh(q, i) : ""}
+    ${TH_CO_NGHE.includes(q.loai) || q.loai === "go_tu" ? phanAmThanh(q, i) : ""}
     ${q.loai === "ghep" ? "" : `<div class="field"><label class="f">${q.loai === "dung_sai" ? "Tranh (bắt buộc)" : "Ảnh đề " + (q.loai === "hinh" ? "(bắt buộc)" : "(không bắt buộc)")}</label><div class="th-anh-o">${anhNut(q.anh, "de", i, -1, true)}</div></div>`}
     ${phanRieng(q, i)}
     <details class="box" style="margin-top:10px"><summary>🔊 Chữ cho nút đọc lệnh (không bắt buộc)</summary>
@@ -299,6 +325,7 @@ async function tEditorTH(id, nh) {
   ACT["in:qf"] = (el) => { E.qs[+el.dataset.i][el.dataset.f] = el.value; mark(); };
   ACT["in:qo"] = (el) => { E.qs[+el.dataset.i].options[+el.dataset.j] = el.value; mark(); };
   ACT["in:cap"] = (el) => { E.qs[+el.dataset.i].cap[+el.dataset.j].cau = el.value; mark(); };
+  ACT["in:capTl"] = (el) => { E.qs[+el.dataset.i].cap[+el.dataset.j].tl = el.value; mark(); };
   ACT["in:nd"] = (el) => { const q = E.qs[+el.dataset.i]; q.nghe_doan = Object.assign(q.nghe_doan || {}, { [el.dataset.f]: el.value === "" ? null : Number(el.value) }); mark(); };
   ACT["ch:ndTep"] = (el) => { const q = E.qs[+el.dataset.i]; q.nghe_doan = Object.assign(q.nghe_doan || {}, { tep: el.value }); mark(); drawCard(+el.dataset.i); };
   ["muc", "ky_nang", "chang", "muc_noi", "ghi", "chu_chay", "tu_chuyen_giay"].forEach((f) => { ACT["ch:" + f] = (el) => { E.qs[+el.dataset.i][f] = el.value === "" ? null : f === "chang" || f === "tu_chuyen_giay" ? Number(el.value) : el.value; mark(); if (f === "ky_nang" || f === "muc_noi") drawCard(+el.dataset.i); }; });
@@ -319,6 +346,8 @@ async function tEditorTH(id, nh) {
   ACT["ch:cor"] = (el) => { E.qs[+el.dataset.i].correct = +el.dataset.j; mark(); };
   const theMoi = (loai, last) => {
     if (loai === "noi") return { loai, muc_noi: "tu", instruction: TH_LENH.noi, goi_y: "", van_ban_mau: "", gioi_han_giay: 60, ghi: "video", anh: null, ky_nang: "noi", muc: last ? last.muc : null, chang: last ? last.chang : null };
+    if (loai === "go_tu" || loai === "sap_xep") return { loai, instruction: TH_LENH[loai], question: "", anh: null, options: ["", "—"], anh_lc: [null, null], correct: 0, explanation: "", doc_lenh: "",
+      dap_an_go_txt: "", manh_txt: "", khac_txt: "", ky_nang: TH_KN[loai], muc: last ? last.muc : null, chang: last ? last.chang : null };
     const n = loai === "dung_sai" ? 2 : loai === "hinh" || loai === "nghe" || loai === "nghe_chu" ? 3 : 4;
     return { loai, instruction: last && last.loai === loai ? last.instruction : TH_LENH[loai], question: "", anh: null,
       options: loai === "dung_sai" ? ["Đúng", "Sai"] : Array(n).fill(""), anh_lc: Array(n).fill(null), correct: null, explanation: "", doc_lenh: "",
@@ -368,7 +397,8 @@ async function tEditorTH(id, nh) {
     if (q.ky_nang) c.ky_nang = q.ky_nang;
     if (q.chang) c.chang = q.chang;
     if ((q.doc_lenh || "").trim()) c.doc_lenh = q.doc_lenh.trim();
-    if (TH_CO_NGHE.includes(q.loai)) {
+    ["muc_do", "dang", "tu", "goi_y"].forEach((f) => { if (q[f] != null && q[f] !== "") c[f] = q[f]; });   // muc 29: giu muc do / dang / tu chinh cua cau kho
+    if (TH_CO_NGHE.includes(q.loai) || q.loai === "go_tu") {   // go_tu: nghe go / nghe dien (muc 29) co the co doan nghe
       if ((q.loi_nghe || "").trim()) c.loi_nghe = q.loi_nghe.trim();
       const nd = q.nghe_doan || {};
       if (nd.tep && nd.tu_giay != null && nd.den_giay != null) c.nghe_doan = { tep: nd.tep, tu_giay: nd.tu_giay, den_giay: nd.den_giay, so_lan: nd.so_lan || null };
@@ -391,6 +421,10 @@ async function tEditorTH(id, nh) {
       return [c];
     }
     const c = chung(q);
+    if (q.loai === "ghep" && q.ghep_chu) {
+      const tl = q.cap.map((x) => (x.tl || "").trim()).concat(thDong(q.nhieu_chu));
+      return q.cap.map((x, k) => Object.assign({}, c, { nhom: q.nhom || "G" + i, question: (x.cau || "").trim(), options: tl, correct: k }, x.stt ? { stt: x.stt } : {}));
+    }
     if (q.loai === "ghep") {
       const tranh = q.cap.map((x) => x.anh).concat((q.tranh_them || []).filter(Boolean));
       return q.cap.map((x, k) => Object.assign({}, c, { nhom: q.nhom || "G" + i, question: (x.cau || "").trim(), options: tranh.map(() => ""), anh_lc: tranh, correct: k }, x.stt ? { stt: x.stt } : {}));
@@ -398,6 +432,14 @@ async function tEditorTH(id, nh) {
     if (q.stt) c.stt = q.stt;
     if (q.anh) c.anh = q.anh;
     if (q.loai === "dung_sai") return [Object.assign(c, { question: (q.question || "").trim() || thCauMacDinh(q), options: ["Đúng", "Sai"], correct: q.correct })];
+    if (q.loai === "go_tu") {
+      const ds = thDong(q.dap_an_go_txt);
+      return [Object.assign(c, { question: (q.question || "").trim(), dap_an_go: ds, options: [ds[0] || "", "—"], correct: 0 })];
+    }
+    if (q.loai === "sap_xep") {
+      const manh = String(q.manh_txt || "").split("|").map((x) => x.trim()).filter(Boolean), khac = thDong(q.khac_txt);
+      return [Object.assign(c, { question: (q.question || "").trim(), manh, options: [manh.join(" "), "—"], correct: 0 }, khac.length ? { dap_an_khac: khac } : {})];
+    }
     if (q.loai === "dien_chu") {
       const tu = (q.dap_an_chu || "").trim().toLowerCase(), nhieu = (q.chu_nhieu || "").toLowerCase().replace(/[^a-z]/g, "").split("");
       return [Object.assign(c, { question: (q.question || "").trim(), dap_an_chu: tu, options: [tu, "—"], correct: 0 }, nhieu.length ? { o_chu: tu.split("").concat(nhieu) } : {})];
@@ -418,6 +460,12 @@ async function tEditorTH(id, nh) {
         if (!q.anh && !(q.goi_y || "").trim() && !(q.van_ban_mau || "").trim()) return [i, `${so}: cần tranh, gợi ý hoặc câu mẫu để bé biết nói gì.`];
         continue;
       }
+      if (q.loai === "ghep" && q.ghep_chu) {
+        const tl = q.cap.map((c) => (c.tl || "").trim()).concat(thDong(q.nhieu_chu));
+        if (q.cap.some((c) => !(c.cau || "").trim() || !(c.tl || "").trim())) return [i, `${so} (hỏi – đáp): cặp nào cũng cần câu hỏi và câu trả lời.`];
+        if (new Set(tl).size < tl.length) return [i, `${so} (hỏi – đáp): các câu trả lời phải khác nhau.`];
+        continue;
+      }
       if (q.loai === "ghep") {
         if (q.cap.some((c) => !(c.cau || "").trim() || !c.anh)) return [i, `${so} (nối câu – tranh): cặp nào cũng cần câu và tranh.`];
         continue;
@@ -426,6 +474,16 @@ async function tEditorTH(id, nh) {
         const tu = (q.dap_an_chu || "").trim();
         if (!/^[A-Za-z]{1,12}$/.test(tu)) return [i, `${so} (điền chữ cái): ô «Các chữ cần điền» chỉ gồm chữ cái a–z.`];
         if ((q.question || "").split("_").length - 1 !== tu.length) return [i, `${so}: câu có ${(q.question || "").split("_").length - 1} dấu _ nhưng cần điền ${tu.length} chữ.`];
+        continue;
+      }
+      if (q.loai === "go_tu") {
+        const ds = thDong(q.dap_an_go_txt);
+        if (!ds.length || ds.length > 5 || ds.some((x) => !/^[A-Za-z0-9'’ -]{1,40}$/.test(x))) return [i, `${so} (gõ cả từ): cần 1–5 đáp án, mỗi đáp án ≤ 40 ký tự, chỉ chữ / số / khoảng trắng.`];
+        continue;
+      }
+      if (q.loai === "sap_xep") {
+        const manh = String(q.manh_txt || "").split("|").map((x) => x.trim()).filter(Boolean);
+        if (manh.length < 2 || manh.length > 12 || manh.some((x) => x.length > 40 || /[<>]/.test(x))) return [i, `${so} (sắp xếp): cần 2–12 mảnh cách nhau bằng |, mỗi mảnh ≤ 40 ký tự.`];
         continue;
       }
       if (q.correct === null || q.correct === undefined) return [i, `${so} chưa chọn đáp án đúng.`];
