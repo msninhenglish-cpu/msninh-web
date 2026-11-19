@@ -397,7 +397,7 @@ async function tEditorTH(id, nh) {
     if (q.ky_nang) c.ky_nang = q.ky_nang;
     if (q.chang) c.chang = q.chang;
     if ((q.doc_lenh || "").trim()) c.doc_lenh = q.doc_lenh.trim();
-    ["muc_do", "dang", "tu", "goi_y"].forEach((f) => { if (q[f] != null && q[f] !== "") c[f] = q[f]; });   // muc 29: giu muc do / dang / tu chinh cua cau kho
+    ["muc_do", "dang", "tu", "goi_y", "khong_tinh"].forEach((f) => { if (q[f] != null && q[f] !== "") c[f] = q[f]; });   // muc 29: giu muc do / dang / tu chinh cua cau kho
     if (TH_CO_NGHE.includes(q.loai) || q.loai === "go_tu") {   // go_tu: nghe go / nghe dien (muc 29) co the co doan nghe
       if ((q.loi_nghe || "").trim()) c.loi_nghe = q.loi_nghe.trim();
       const nd = q.nghe_doan || {};

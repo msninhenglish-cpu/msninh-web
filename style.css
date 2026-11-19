@@ -854,3 +854,5 @@ mark.cho-dang { background: #ffe066; color: inherit; padding: 1px 4px; border-ra
   .bo-dem + .pub-quick { margin-top: 10px; }
   .bd-the { padding: 12px 8px; } .bd-so { font-size: 26px; } .bd-the small { font-size: 12.5px; }
 }
+/* Zalo / trinh duyet trong app: dai vang moi mo bang Chrome / Safari khi bai co phan nghe */
+.zalo-dai { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }

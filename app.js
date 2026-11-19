@@ -332,7 +332,7 @@ function moDe(chay) {
   if (window.tDe) return chay();
   if (location.hash.startsWith("#/t/de/")) app.innerHTML = tShell("quizzes", spinner());
   const s = document.createElement("script");
-  s.src = "de_cham.js?v=1";
+  s.src = "de_cham.js?v=2";
   s.onload = () => chay();
   s.onerror = () => { const m = app.querySelector("main"); if (m) m.innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); else toast("Không tải được. Kiểm tra mạng."); };
   document.head.appendChild(s);
@@ -724,11 +724,14 @@ function optsCls(q, goc) { return goc + (q.options && q.options.some((o) => o.a)
 const VI_DAU = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i;
 function thLenh(q) {
   const ds = [plain(q.instruction), q.doc_lenh || plain(q.question).replace(/\(\d{1,3}\)/g, " ")].map((t) => String(t || "").replace(/\s+/g, " ").trim()).filter((t) => /[a-zà-ỹ]/i.test(t));
-  const nut = ds.length && "speechSynthesis" in window ? `<button type="button" class="doc-nut" data-act="docTo" data-doc="${esc(JSON.stringify(ds))}" aria-label="Đọc to đề bài">🔊</button>` : "";
+  const nut = ds.length ? `<button type="button" class="doc-nut" data-act="docTo" data-doc="${esc(JSON.stringify(ds))}" aria-label="Đọc to đề bài">🔊</button>` : "";
   return nut || q.instruction ? `<div class="th-lenh">${nut}${q.instruction ? `<div class="q-instr">${fmt(q.instruction)}</div>` : ""}</div>` : "";
 }
+// Trinh duyet trong app (Zalo, Facebook…) hay khong co giong doc / chan phat am thanh
+const LA_ZALO = /Zalo/i.test(navigator.userAgent || "");
+function khongDocDuoc() { toast(LA_ZALO ? "Ứng dụng Zalo chưa đọc được tiếng. Ba mẹ mở bài bằng Chrome hoặc Safari (xem dải vàng ở đầu bài) để nghe nhé." : "Trình duyệt này chưa đọc được tiếng. Ba mẹ mở bài bằng Chrome hoặc Safari để nghe nhé.", 6000); }
 function docTo(ds) {
-  const sp = window.speechSynthesis; if (!sp) return;
+  const sp = window.speechSynthesis; if (!sp) { khongDocDuoc(); return; }
   sp.cancel();
   const giong = sp.getVoices(), chon = (lang) => giong.find((v) => v.lang.replace("_", "-") === lang) || giong.find((v) => v.lang.toLowerCase().startsWith(lang.slice(0, 2)));
   const coVi = !!chon("vi-VN"), doc = ds.filter((t) => coVi || !VI_DAU.test(t) || ds.length === 1);
@@ -756,8 +759,14 @@ function thGanNut(holder) {
     if (a._dung) a.removeEventListener("timeupdate", a._dung);
     a._dung = () => { if (a.currentTime >= den) { a.pause(); a.removeEventListener("timeupdate", a._dung); } };
     a.addEventListener("timeupdate", a._dung);
-    const bat = () => { a.currentTime = tu; a.play().catch(() => toast("Chưa phát được âm thanh. Em kiểm tra mạng / âm lượng rồi bấm lại.")); };
-    if (a.readyState >= 1) bat(); else { a.preload = "auto"; a.addEventListener("loadedmetadata", bat, { once: true }); a.load(); }
+    // play() goi NGAY trong lan cham (Zalo / WebView chan play() goi sau su kien tai xong); chua tai thi tat tieng den khi tua toi doan
+    const loi = () => toast(LA_ZALO ? "Zalo chưa phát được âm thanh. Ba mẹ mở bài bằng Chrome hoặc Safari (dải vàng ở đầu bài) nhé." : "Chưa phát được âm thanh. Em kiểm tra mạng / âm lượng rồi bấm lại.", 6000);
+    if (a.readyState >= 1) a.currentTime = tu;
+    else {
+      a.preload = "auto"; a.muted = true;
+      a.addEventListener("loadedmetadata", () => { a.currentTime = tu; a.addEventListener("seeked", () => { a.muted = false; }, { once: true }); }, { once: true });
+    }
+    a.play().catch(() => { a.muted = false; loi(); });
   };
 }
 function thDungDoc() { try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) { /* bo */ } }
@@ -788,7 +797,7 @@ function thNgheNut(holder, q) {
   const i = nd ? ds.findIndex((f) => f.ten === nd.tep) : -1;
   if (i >= 0) return `<button type="button" class="nghe-to" data-act="ngheDoan" data-i="${i}" data-tu="${nd.tu_giay}" data-den="${nd.den_giay}" data-lan="${nd.so_lan || ""}" data-qi="${q.qi}">🎧 Nghe</button>`;
   const coFile = ds.some((f) => !(holder.doanTep && holder.doanTep.has(f.ten)) && (f.tu == null || (q.stt >= f.tu && q.stt <= f.den)));
-  if (q.loi_nghe && !coFile && "speechSynthesis" in window) return `<button type="button" class="nghe-to" data-act="ngheMay" data-doc="${esc(q.loi_nghe)}">🎧 Nghe</button>`;
+  if (q.loi_nghe && !coFile) return `<button type="button" class="nghe-to" data-act="ngheMay" data-doc="${esc(q.loi_nghe)}">🎧 Nghe</button>`;
   return "";
 }
 // Than cau theo dang (de tieu hoc). cls(o): lop cua lua chon (sel / right / wrong); dis: khoa. null = dung kieu chung.
@@ -911,7 +920,7 @@ function taiNoiJs() {
   if (window.sNoi) return Promise.resolve();
   return new Promise((ok, loi) => {
     const s = document.createElement("script");
-    s.src = "bai_noi.js?v=6";
+    s.src = "bai_noi.js?v=7";
     s.onload = () => ok(); s.onerror = () => loi(new Error("Không tải được phần bài nói."));
     document.head.appendChild(s);
   });
@@ -958,7 +967,7 @@ function moTH(chay) {
   if (window.tEditorTH) return chay();
   app.innerHTML = tShell("quizzes", spinner());
   const s = document.createElement("script");
-  s.src = "tieu_hoc.js?v=11";
+  s.src = "tieu_hoc.js?v=12";
   s.onload = () => chay();
   s.onerror = () => { const m = app.querySelector("main"); if (m) m.innerHTML = errBox("Không tải được trang. Kiểm tra mạng rồi thử lại."); };
   document.head.appendChild(s);
@@ -1011,7 +1020,7 @@ function ngheGanNut(holder) {
       LS.set(holder.nkey + "_" + i, n + 1);
     }
     if (a.ended) a.currentTime = 0;
-    a.play().catch(() => toast("Chưa phát được âm thanh. Em kiểm tra mạng / âm lượng rồi bấm lại."));
+    a.play().catch(() => toast(LA_ZALO ? "Zalo chưa phát được âm thanh. Ba mẹ mở bài bằng Chrome hoặc Safari (dải vàng ở đầu bài) nhé." : "Chưa phát được âm thanh. Em kiểm tra mạng / âm lượng rồi bấm lại.", 6000));
   };
   ACT["in:ngheTua"] = (r) => { const x = holder.au[r.dataset.i]; if (x && isFinite(x.a.duration)) x.a.currentTime = r.value / 1000 * x.a.duration; };
 }
@@ -1270,6 +1279,17 @@ function onPhanHoi(qz, q) {
       : noiCon >= 0 ? `<div class="on-fb dung" style="text-align:center"><b>🎉 Em đã làm xong ${n} câu trắc nghiệm!</b><div>Còn phần nói nữa nhé.</div></div><button class="btn btn-gold btn-block btn-lg" data-act="onTiep" data-i="${n + noiCon}">🎤 Sang bài nói →</button>`
       : `<div class="on-fb dung" style="text-align:center"><b>🎉 Em đã làm xong cả ${n} câu!</b></div><button class="btn btn-gold btn-block btn-lg" data-act="doSubmit">Nộp bài ✔</button>`}`;
 }
+// Dai vang: dang mo trong Zalo ma bai co phan nghe -> moi mo bang Chrome / Safari (Android: nut mo Chrome; iPhone: huong dan ⋯)
+function zaloDai(holder) {
+  const qs = holder.qs || holder.questions || [];
+  if (!LA_ZALO || !((holder.am_thanh || []).length || qs.some((q) => q.loi_nghe || q.nghe_doan))) return "";
+  const h = (location.hash || "#/").replace(/^#\/quiz\/(\d+)/, "#/start/$1"), url = location.origin + "/?mo_bai=" + encodeURIComponent(h);
+  const android = /Android/i.test(navigator.userAgent || "");
+  const nut = android ? `<a class="btn btn-sm btn-gold" href="intent://${location.host}/?mo_bai=${encodeURIComponent(h)}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(url)};end">Mở bằng Chrome</a>`
+    : `<span>Bấm <b>⋯</b> ở góc trên → <b>Mở bằng trình duyệt</b>.</span>`;
+  return `<div class="alert alert-warn zalo-dai">🎧 Bài có phần nghe. Nếu Zalo không phát được tiếng, mở bài bằng ${android ? "Chrome" : "Safari"}: ${nut}
+    <button type="button" class="btn btn-sm" data-act="chepLink" data-link="${esc(url)}">📋 Chép link</button></div>`;
+}
 function quizDraw(qz) {
   if (qz.noi && qz.idx >= qz.qs.length) return quizDrawNoi(qz);
   if (qz.on) return onDraw(qz);
@@ -1281,7 +1301,7 @@ function quizDraw(qz) {
       ${quizShowTimer(qz) ? '<span class="timer" id="timer">⏱ --:--</span>' : ""}</div>
     <div class="bar" style="margin-bottom:14px"><i id="prog"></i></div>
   </div>
-  <div class="card">
+  ${zaloDai(qz)}<div class="card">
     <div class="muted small"><span class="badge ${qz.mode === "exam" ? "exam" : "hw"}" style="margin-right:6px">${qz.mode === "exam" ? "Kiểm tra" : "Bài tập"}</span>Câu ${qz.idx + 1} / ${n} · <span id="cnt"></span>${chang}</div>
     ${qz.th ? thLenh(q) : q.instruction ? `<div class="q-instr" style="margin-top:10px">${fmt(q.instruction)}</div>` : ""}
     ${ngheHtml(qz, q)}${qz.th ? thNgheNut(qz, q) : ""}${thTruoc(q)}
@@ -1306,7 +1326,7 @@ function onDraw(qz) {
     <div class="top"><span class="ttl">💡 ${esc(qz.title)}</span>${quizShowTimer(qz) ? '<span class="timer" id="timer">⏱ --:--</span>' : ""}</div>
     <div class="bar" style="margin-bottom:14px"><i id="prog"></i></div>
   </div>
-  <div class="card">
+  ${zaloDai(qz)}<div class="card">
     <div class="muted small"><span class="badge gold" style="margin-right:6px">💡 Giải thích từng câu</span>Câu ${qz.idx + 1} / ${n} · <span id="cnt"></span></div>
     ${qz.th ? thLenh(q) : q.instruction ? `<div class="q-instr" style="margin-top:10px">${fmt(q.instruction)}</div>` : ""}
     ${ngheHtml(qz, q)}${qz.th ? thNgheNut(qz, q) : ""}${thTruoc(q)}
@@ -1491,7 +1511,7 @@ function reviewHtml(d, onlyWrong) {
         : `<div class="explain"><div class="small" style="margin-bottom:4px">${q.chosen === null || q.chosen === undefined ? "Em <b>bỏ trống</b> câu này" : `Em chọn: <b class="sai">${LETTERS[q.options.findIndex((o) => o.k === q.chosen)]}. ${optNgan(q.options.find((o) => o.k === q.chosen))}</b>`}
           · Đáp án đúng: <b class="dung">${LETTERS[q.options.findIndex((o) => o.k === q.correct)]}. ${optNgan(q.options.find((o) => o.k === q.correct))}</b></div>
           ${q.explanation ? `<b>💡 Giải thích</b><div>${fmt(q.explanation)}</div>` : '<span class="small muted">Cô chưa thêm giải thích cho câu này.</span>'}</div>`}</div>`;
-  }).join("");
+  }).map((h, i) => (h && d.questions[i].khong_tinh ? h.replace("</b>", "</b> <span class=\"badge\">🚫 Không tính điểm</span>") : h)).join("");   // muc 30
 }
 async function sReview(id) {
   app.innerHTML = sShell("results", spinner(), { left: backBtn("#/results") });
@@ -2354,6 +2374,7 @@ async function tEditor(id) {
       <button type="button" class="icon-btn" data-act="odel" data-i="${i}" data-j="${j}" title="Xoá lựa chọn" ${q.options.length <= 2 ? "disabled" : ""}>✕</button></div>`).join("")}
     ${q.options.length < 8 ? `<button type="button" class="btn btn-sm" data-act="oadd" data-i="${i}">+ Thêm lựa chọn</button>` : ""}
     <div class="field" style="margin-top:10px"><label class="f">Giải thích (học sinh thấy khi xem lại)</label><textarea class="input" rows="2" data-in="qf" data-i="${i}" data-f="explanation">${esc(q.explanation || "")}</textarea></div>
+    <label class="check small"><input type="checkbox" data-ch="khongTinh" data-i="${i}" ${q.khong_tinh ? "checked" : ""}> 🚫 Không tính điểm câu này <span class="faint">(câu lỗi: bỏ khỏi tổng điểm; lưu xong web tự chấm lại các bài đã nộp)</span></label>
   </div>`;
 
   const drawList = () => {
@@ -2414,6 +2435,7 @@ D. playing
   ACT["in:qf"] = (el) => { E.qs[+el.dataset.i][el.dataset.f] = el.value; mark(); };
   ACT["in:qo"] = (el) => { E.qs[+el.dataset.i].options[+el.dataset.j] = el.value; mark(); };
   ACT["ch:cor"] = (el) => { E.qs[+el.dataset.i].correct = +el.dataset.j; mark(); };
+  ACT["ch:khongTinh"] = (el) => { E.qs[+el.dataset.i].khong_tinh = el.checked; mark(); };
   ACT.up = (el) => { const i = +el.dataset.i; [E.qs[i - 1], E.qs[i]] = [E.qs[i], E.qs[i - 1]]; mark(); drawList(); };
   ACT.down = (el) => { const i = +el.dataset.i; [E.qs[i + 1], E.qs[i]] = [E.qs[i], E.qs[i + 1]]; mark(); drawList(); };
   ACT.qdel = (el) => { if (confirm(`Xoá câu ${+el.dataset.i + 1}?`)) { E.qs.splice(+el.dataset.i, 1); mark(); drawList(); } };
@@ -2458,7 +2480,7 @@ D. playing
     }
     try {
       // giu doan van chung (de doc hieu) — trinh soan chua sua doan van, nhung khong duoc lam mat
-      const qs = E.qs.map((q) => Object.assign({ stt: q.stt, question: q.question.trim(), options: q.options.map((o) => String(o).trim()), correct: q.correct, explanation: (q.explanation || "").trim(), instruction: (q.instruction || "").trim() }, q.doan_van ? { doan_van: q.doan_van } : {}));
+      const qs = E.qs.map((q) => Object.assign({ stt: q.stt, question: q.question.trim(), options: q.options.map((o) => String(o).trim()), correct: q.correct, explanation: (q.explanation || "").trim(), instruction: (q.instruction || "").trim() }, q.doan_van ? { doan_van: q.doan_van } : {}, q.khong_tinh ? { khong_tinh: true } : {}));
       const r = await api("t_save_quiz", { p_id: E.id, p_title: E.title, p_questions: qs });
       E.id = r.id; E.dirty = false;
       await luuKhoiDe(r.id);
@@ -2904,5 +2926,7 @@ async function tDangKy(query) {
 }
 
 /* ================= khoi dong ================= */
+// Link «Mở bằng Chrome» tu Zalo: /?mo_bai=#/start/12 -> ve dung trang
+{ const mo = new URLSearchParams(location.search).get("mo_bai"); if (mo && /^#\/[\w/.-]*$/.test(mo)) history.replaceState(null, "", "/" + mo); }
 route();
 demBatDau();

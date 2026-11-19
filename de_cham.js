@@ -12,7 +12,7 @@ async function tDe(id) {
   try { [q, lan, ls] = await Promise.all([api("t_get_quiz", { p_id: id }), api("t_lan_cham", { p_quiz_id: id }), api("t_lich_su_de", { p_quiz_id: id })]); }
   catch (e) { app.querySelector("main").innerHTML = pageError(e, "#/t/quizzes"); return; }
   if (!q) { app.querySelector("main").innerHTML = errBox("Không tìm thấy đề."); return; }
-  const TRUONG = { dap_an: "Đáp án", cau_hoi: "Câu hỏi", lua_chon: "Lựa chọn", giai_thich: "Giải thích", huong_dan: "Hướng dẫn", cau: "Câu" };
+  const TRUONG = { dap_an: "Đáp án", cau_hoi: "Câu hỏi", lua_chon: "Lựa chọn", giai_thich: "Giải thích", huong_dan: "Hướng dẫn", cau: "Câu", khong_tinh: "Tính điểm", hinh: "Hình", doan_van: "Đoạn văn", dang_cau: "Dạng câu" };
   app.querySelector("main").innerHTML = `<a href="#/t/quizzes" class="small">‹ Kho đề</a>
     <div class="row between" style="margin:8px 0 4px;gap:8px;flex-wrap:wrap"><h1 style="margin:0">${esc(q.title)}</h1>
       <div class="row" style="gap:6px;flex-wrap:wrap"><a class="btn btn-sm" href="#/t/q/${id}">✏️ Sửa đề / đáp án</a><a class="btn btn-sm btn-primary" href="#/t/new?quiz=${id}">Giao bài</a>

@@ -62,8 +62,10 @@ function noiNghe(dsAm, nd, chu, xong) {
   const het = () => { if (!da) { da = true; try { a.pause(); } catch (e) { /* bo */ } xong(); } };
   a.addEventListener("timeupdate", () => { if (a.currentTime >= nd.den_giay) het(); });
   a.addEventListener("error", () => { if (!da) { da = true; noiDoc(chu, xong); } });
-  const bat = () => { a.currentTime = nd.tu_giay; a.play().catch(() => { if (!da) { da = true; noiDoc(chu, xong); } }); };
-  a.preload = "auto"; a.addEventListener("loadedmetadata", bat, { once: true }); a.load();
+  // play() goi ngay (con trong lan cham cua be) — Zalo / WebView chan play() goi sau khi tai xong; tat tieng den khi tua toi doan
+  a.preload = "auto"; a.muted = true;
+  a.addEventListener("loadedmetadata", () => { a.currentTime = nd.tu_giay; a.addEventListener("seeked", () => { a.muted = false; }, { once: true }); }, { once: true });
+  a.play().catch(() => { if (!da) { da = true; noiDoc(chu, xong); } });
   setTimeout(het, (nd.den_giay - nd.tu_giay) * 1000 + 8000);
   return { dung: () => { da = true; try { a.pause(); } catch (e) { /* bo */ } } };
 }
@@ -135,7 +137,7 @@ function noiTheHtml(t, i, da, nut) {
   const doc = [t.instruction, t.van_ban_mau].filter(Boolean);
   return `<div class="card noi-the">
     <div class="row between" style="gap:8px"><b>🎤 Bài nói ${i + 1}</b><span class="badge">${esc(NOI_MUC[t.muc_noi] || "Nói")} · ${t.ghi === "am_thanh" ? "🎙 ghi âm" : "📹 quay video"} · tối đa ${noiGiay(t.gioi_han_giay || 60)}</span></div>
-    ${t.instruction || doc.length ? `<div class="th-lenh">${doc.length && "speechSynthesis" in window ? `<button type="button" class="doc-nut" data-act="docTo" data-doc="${esc(JSON.stringify(doc))}" aria-label="Nghe mẫu">🔊</button>` : ""}${t.instruction ? `<div class="q-instr">${fmt(t.instruction)}</div>` : ""}</div>` : ""}
+    ${t.instruction || doc.length ? `<div class="th-lenh">${doc.length ? `<button type="button" class="doc-nut" data-act="docTo" data-doc="${esc(JSON.stringify(doc))}" aria-label="Nghe mẫu">🔊</button>` : ""}${t.instruction ? `<div class="q-instr">${fmt(t.instruction)}</div>` : ""}</div>` : ""}
     ${t.anh ? `<div class="q-anh"><img src="${esc(urlAnh(t.anh))}" alt="Tranh bài nói ${i + 1}"></div>` : ""}
     ${t.goi_y ? `<p class="noi-goi-y">💡 ${fmt(t.goi_y)}</p>` : ""}
     ${t.van_ban_mau ? `<div class="noi-mau">${fmt(t.van_ban_mau).replace(/\n/g, "<br>")}</div>` : ""}
